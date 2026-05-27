@@ -207,7 +207,7 @@ select option { background: #fff; }
   .ar-nums { gap: 8px; }
 }
 </style>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
 </head>
 <body>
 
@@ -960,8 +960,13 @@ function renderGroup(grp) {
     lastSub=a.sub;
 
     const priceStr = a.cur!==null
-      ? (a.currency==='USD'?'$'+a.cur.toFixed(2):fmt(a.cur)+'원')
+      ? (a.currency==='USD' ? '$'+a.cur.toFixed(2)
+        : a.currency==='JPY' ? '¥'+a.cur.toLocaleString()
+        : fmt(a.cur)+'원')
       : '<span style="color:var(--muted);font-size:11px">미조회</span>';
+    const rateStr = (a.currency==='USD'||a.currency==='JPY') && (a.buyRate||a.curRate)
+      ? `<span class="ar-sep">·</span><span class="ar-num"><span class="ar-num-label">환율</span><span class="ar-num-val">${a.buyRate||'-'}${a.curRate?'→'+a.curRate:''}</span></span>`
+      : '';
     const gainStr = g!==null
       ? `<span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${g>=0?'var(--green)':'var(--red)'}">${g>=0?'+':''}${p!==null?p.toFixed(1)+'%':''}</span>`
       : ``;
@@ -1323,6 +1328,19 @@ renderDash();
 // ── 엑셀 업로드 처리 ──
 let excelParsed = [];
 
+// SheetJS 동적 로드
+let xlsxLoaded = false;
+async function loadXLSX() {
+  if(xlsxLoaded || window.XLSX) { xlsxLoaded=true; return true; }
+  return new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+    s.onload = () => { xlsxLoaded=true; resolve(true); };
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
 async function handleExcelUpload(event) {
   const file = event.target.files[0];
   if(!file) return;
@@ -1341,6 +1359,11 @@ async function handleExcelUpload(event) {
         rows = lines.map(l => l.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
       } else {
         // XLSX 파싱
+        const loaded = await loadXLSX();
+        if(!loaded) {
+          alert('엑셀 라이브러리 로드 실패\nCSV 파일로 변환 후 다시 시도해주세요');
+          return;
+        }
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
