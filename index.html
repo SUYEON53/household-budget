@@ -207,6 +207,7 @@ select option { background: #fff; }
   .ar-nums { gap: 8px; }
 }
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -343,8 +344,10 @@ select option { background: #fff; }
     <div>
       <div class="ph-title">자산 현황</div>
     </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-sm" onclick="fetchAllPrices()" id="refresh-btn">🔄 시세 갱신</button>
+      <button class="btn-sm" onclick="document.getElementById('excel-upload').click()">📂 엑셀 업로드</button>
+      <input type="file" id="excel-upload" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelUpload(event)">
       <button class="btn" onclick="openAddModal()">추가</button>
     </div>
   </div>
@@ -424,8 +427,8 @@ select option { background: #fff; }
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-l">연 목표</div><div class="kpi-v color-gold" id="dv-goal">-</div></div>
     <div class="kpi"><div class="kpi-l">수령 합계</div><div class="kpi-v color-green" id="dv-total">-</div></div>
-  </div>
-  
+    </div>
+
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-l">달성률</div><div class="kpi-v color-blue" id="dv-pct">-</div></div>
     <div class="kpi"><div class="kpi-l">최고 월</div><div class="kpi-v color-gold" id="dv-best">-</div></div>
@@ -672,37 +675,40 @@ function getFxRate(currency, rateField) {
 }
 
 // ── STATE ──
-let goals   = JSON.parse(localStorage.getItem('g5'))  || {...DEF_GOALS};
-// assets 로드 — 구버전 'long' 키를 'lng'로 마이그레이션
-(function(){
-  const raw = localStorage.getItem('a5');
-  if(raw) {
+// ── 안전한 localStorage 로드 함수
+function loadLS(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
     const parsed = JSON.parse(raw);
-    // 구버전 키 변환
-    if(parsed.long && !parsed.lng) parsed.lng = parsed.long;
-    if(!parsed.mid)  parsed.mid  = [];
-    if(!parsed.lng)  parsed.lng  = [];
-    if(!parsed.cash) parsed.cash = [];
-    localStorage.setItem('a5', JSON.stringify(parsed));
+    return parsed;
+  } catch(e) {
+    return fallback;
   }
-})();
-let assets  = JSON.parse(localStorage.getItem('a5'))  || JSON.parse(JSON.stringify(DEF_ASSETS));
-// 런타임 키 보정
+}
+
+let goals   = loadLS('g5', {...DEF_GOALS});
+let assets  = loadLS('a5', {mid:[], lng:[], cash:[]});
+// 키 무조건 보정
 if(!assets.mid)  assets.mid  = [];
 if(!assets.lng)  assets.lng  = [];
 if(!assets.cash) assets.cash = [];
-let history = JSON.parse(localStorage.getItem('h5'))  || [...DEF_HIST];
-let divs    = JSON.parse(localStorage.getItem('d5'))  || [...DEF_DIVS];
-let txs     = JSON.parse(localStorage.getItem('t5'))  || [...DEF_TXS];
+let history = loadLS('h5', []);
+let divs    = loadLS('d5', []);
+let txs     = loadLS('t5', []);
 let curY=2026, curM=4, txType='income', filterMode='all';
 let groupOpen = {mid:true, lng:true, cash:true};
 
 const save = () => {
-  localStorage.setItem('g5', JSON.stringify(goals));
-  localStorage.setItem('a5', JSON.stringify(assets));
-  localStorage.setItem('h5', JSON.stringify(history));
-  localStorage.setItem('d5', JSON.stringify(divs));
-  localStorage.setItem('t5', JSON.stringify(txs));
+  try {
+    localStorage.setItem('g5', JSON.stringify(goals));
+    localStorage.setItem('a5', JSON.stringify(assets));
+    localStorage.setItem('h5', JSON.stringify(history));
+    localStorage.setItem('d5', JSON.stringify(divs));
+    localStorage.setItem('t5', JSON.stringify(txs));
+  } catch(e) {
+    alert('저장 실패: ' + e.message);
+  }
 };
 
 // ── HELPERS ──
@@ -941,6 +947,7 @@ function renderGroup(grp) {
            : `매수 ${fmt(totalCost/10000)}만 → 현재 ${fmt(totalVal/10000)}만 (${gain>=0?'+':''}${fmt(gain/10000)}만)`;
 
   const body=document.getElementById('ag-'+grp+'-body');
+  if(!body) return;
   if(!groupOpen[grp]){body.style.display='none';return;}
   body.style.display='block';
 
@@ -1060,7 +1067,13 @@ function saveAsset() {
   } else {
     assets[grp].push(obj);
   }
-  save(); cm('ov-asset'); renderAssets(); renderDash();
+  save();
+  // 저장 확인
+  const check = loadLS('a5', {});
+  const cnt = (check.mid||[]).length + (check.lng||[]).length + (check.cash||[]).length;
+  cm('ov-asset');
+  renderAssets();
+  renderDash();
 }
 
 function delAsset(grp,i){ if(!confirm('삭제할까요?'))return; assets[grp].splice(i,1); save(); renderAssets(); renderDash(); }
@@ -1277,5 +1290,198 @@ window.addEventListener('resize', ()=>{ if(document.getElementById('tab-dash').c
 document.getElementById('m-label').textContent=`${curY}년 ${MONTHS_KR[curM-1]}`;
 renderDash();
 </script>
+
+<!-- 엑셀 업로드 결과 모달 -->
+<div class="ov" id="ov-excel" onclick="oclose('ov-excel',event)">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">📂 엑셀 업로드 결과</div>
+    <div id="excel-preview-info" style="font-size:13px;color:var(--text2);margin-bottom:12px"></div>
+
+    <!-- 파싱된 항목 미리보기 -->
+    <div style="max-height:320px;overflow-y:auto;margin-bottom:14px">
+      <table class="tbl" id="excel-preview-table">
+        <thead><tr>
+          <th><input type="checkbox" id="excel-check-all" onchange="toggleAllExcel(this.checked)"></th>
+          <th>분류</th><th>종목/계좌명</th><th>평균단가</th><th>수량</th><th>통화</th>
+        </tr></thead>
+        <tbody id="excel-preview-body"></tbody>
+      </table>
+    </div>
+
+    <!-- 컬럼 매핑 안내 -->
+    <div id="excel-mapping-info" style="background:var(--blue-light);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.7"></div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="cm('ov-excel')">취소</button>
+      <button class="btn" onclick="importExcelData()">선택 항목 가져오기</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── 엑셀 업로드 처리 ──
+let excelParsed = [];
+
+async function handleExcelUpload(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  event.target.value = ''; // 같은 파일 재업로드 허용
+
+  const isCSV = file.name.endsWith('.csv');
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    try {
+      let rows = [];
+      if(isCSV) {
+        // CSV 파싱
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l=>l.trim());
+        rows = lines.map(l => l.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
+      } else {
+        // XLSX 파싱
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_array(ws, {defval:''});
+      }
+
+      if(rows.length < 2) return alert('데이터가 없습니다.');
+
+      // Claude에게 파싱 요청
+      document.getElementById('ov-excel').classList.add('on');
+      document.getElementById('excel-preview-info').innerHTML = '<span style="color:var(--muted)">🤖 Claude가 컬럼 구조를 분석 중...</span>';
+      document.getElementById('excel-preview-body').innerHTML = '';
+
+      await parseWithClaude(rows);
+
+    } catch(err) {
+      alert('파일 읽기 실패: ' + err.message);
+    }
+  };
+
+  if(isCSV) reader.readAsText(file, 'utf-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+async function parseWithClaude(rows) {
+  // 최대 50행만 전송 (토큰 절약)
+  const preview = rows.slice(0, 50);
+  const tableText = preview.map(r => r.join(' | ')).join('\n');
+
+  const prompt = `다음은 사용자의 자산 현황 엑셀 데이터입니다. 각 행을 분석해서 자산 항목으로 변환해주세요.
+
+데이터:
+${tableText}
+
+다음 JSON 배열 형식으로만 응답하세요 (다른 텍스트 없이):
+[
+  {
+    "group": "mid 또는 lng 또는 cash",
+    "sub": "소분류 (예: 배당중심, ETF, 파킹통장 등)",
+    "name": "종목명 또는 계좌명",
+    "ticker": "티커 (없으면 빈문자열)",
+    "currency": "KRW 또는 USD 또는 JPY",
+    "avg": 평균매수단가(숫자, 없으면 0),
+    "qty": 수량(숫자, 없으면 0),
+    "cur": 현재가(숫자, 없으면 null),
+    "mapping": "어떤 컬럼을 어떻게 매핑했는지 한 줄 설명"
+  }
+]
+
+group 분류 기준:
+- mid(중기투자): 개별주식, ETF, 배당주, 비트코인 등 중기 보유 투자
+- lng(장기투자): 연금, IRP, 퇴직연금, 주택청약 등 장기 묶인 자산
+- cash(현금/단기): 예금, 적금, 파킹통장, CMA, 외화예금 등
+
+헤더행은 제외하고 데이터 행만 변환하세요.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    const match = text.match(/\[[\s\S]*\]/);
+    if(!match) throw new Error('파싱 실패');
+
+    excelParsed = JSON.parse(match[0]);
+    renderExcelPreview();
+
+  } catch(err) {
+    document.getElementById('excel-preview-info').innerHTML =
+      `<span style="color:var(--red)">❌ AI 분석 실패: ${err.message}</span><br>
+       <span style="color:var(--muted);font-size:12px">항목을 직접 추가하거나 CSV 형식으로 다시 시도해보세요.</span>`;
+  }
+}
+
+function renderExcelPreview() {
+  const grpLabel = {mid:'중기투자', lng:'장기투자', cash:'현금/단기'};
+  document.getElementById('excel-preview-info').innerHTML =
+    `<span style="color:var(--green)">✅ ${excelParsed.length}개 항목 인식</span> · 가져올 항목을 선택하세요`;
+
+  const mappings = [...new Set(excelParsed.map(r=>r.mapping).filter(Boolean))];
+  document.getElementById('excel-mapping-info').innerHTML =
+    '📋 <b>컬럼 매핑:</b> ' + mappings.join(' / ');
+
+  document.getElementById('excel-preview-body').innerHTML = excelParsed.map((r,i) => `
+    <tr>
+      <td><input type="checkbox" class="excel-item-check" data-idx="${i}" checked></td>
+      <td><span style="font-size:12px;color:var(--blue)">${grpLabel[r.group]||r.group}</span></td>
+      <td style="font-weight:600">${r.name}<br><span style="font-size:11px;color:var(--muted)">${r.sub||''} ${r.ticker?'· '+r.ticker:''}</span></td>
+      <td class="r" style="font-family:var(--mono);font-size:12px">${r.avg?r.avg.toLocaleString():'-'}</td>
+      <td class="r" style="font-family:var(--mono);font-size:12px">${r.qty||'-'}</td>
+      <td style="font-size:12px">${r.currency||'KRW'}</td>
+    </tr>
+  `).join('');
+}
+
+function toggleAllExcel(checked) {
+  document.querySelectorAll('.excel-item-check').forEach(cb => cb.checked = checked);
+}
+
+function importExcelData() {
+  const checked = [...document.querySelectorAll('.excel-item-check')]
+    .filter(cb => cb.checked)
+    .map(cb => parseInt(cb.dataset.idx));
+
+  if(checked.length === 0) return alert('가져올 항목을 선택하세요');
+
+  checked.forEach(i => {
+    const r = excelParsed[i];
+    const grp = ['mid','lng','cash'].includes(r.group) ? r.group : 'mid';
+    assets[grp].push({
+      sub: r.sub || '기타',
+      name: r.name || '항목',
+      ticker: r.ticker || '',
+      exchange: '',
+      currency: r.currency || 'KRW',
+      avg: r.avg || 0,
+      qty: r.qty || 0,
+      cur: r.cur || null,
+      buyRate: null,
+      curRate: null,
+    });
+  });
+
+  save();
+  cm('ov-excel');
+  renderAssets();
+  renderDash();
+  alert(`✅ ${checked.length}개 항목이 추가되었습니다!`);
+}
+</script>
+
 </body>
 </html>
