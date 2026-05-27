@@ -424,10 +424,10 @@ select option { background: #fff; }
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-l">연 목표</div><div class="kpi-v color-gold" id="dv-goal">-</div></div>
     <div class="kpi"><div class="kpi-l">수령 합계</div><div class="kpi-v color-green" id="dv-total">-</div></div>
- </div>
-
-    <div class="kpi-row">
-     <div class="kpi"><div class="kpi-l">달성률</div><div class="kpi-v color-blue" id="dv-pct">-</div></div>
+  </div>
+  
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-l">달성률</div><div class="kpi-v color-blue" id="dv-pct">-</div></div>
     <div class="kpi"><div class="kpi-l">최고 월</div><div class="kpi-v color-gold" id="dv-best">-</div></div>
   </div>
 
@@ -673,7 +673,24 @@ function getFxRate(currency, rateField) {
 
 // ── STATE ──
 let goals   = JSON.parse(localStorage.getItem('g5'))  || {...DEF_GOALS};
+// assets 로드 — 구버전 'long' 키를 'lng'로 마이그레이션
+(function(){
+  const raw = localStorage.getItem('a5');
+  if(raw) {
+    const parsed = JSON.parse(raw);
+    // 구버전 키 변환
+    if(parsed.long && !parsed.lng) parsed.lng = parsed.long;
+    if(!parsed.mid)  parsed.mid  = [];
+    if(!parsed.lng)  parsed.lng  = [];
+    if(!parsed.cash) parsed.cash = [];
+    localStorage.setItem('a5', JSON.stringify(parsed));
+  }
+})();
 let assets  = JSON.parse(localStorage.getItem('a5'))  || JSON.parse(JSON.stringify(DEF_ASSETS));
+// 런타임 키 보정
+if(!assets.mid)  assets.mid  = [];
+if(!assets.lng)  assets.lng  = [];
+if(!assets.cash) assets.cash = [];
 let history = JSON.parse(localStorage.getItem('h5'))  || [...DEF_HIST];
 let divs    = JSON.parse(localStorage.getItem('d5'))  || [...DEF_DIVS];
 let txs     = JSON.parse(localStorage.getItem('t5'))  || [...DEF_TXS];
@@ -1070,7 +1087,7 @@ async function fetchAllPrices(){
 [{"ticker":"SCHD","price":26.5,"currency":"USD"},{"ticker":"005930","price":72000,"currency":"KRW"}]`;
 
   try {
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     const text=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
     const match=text.match(/\[[\s\S]*?\]/);
