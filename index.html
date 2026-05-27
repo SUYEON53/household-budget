@@ -342,11 +342,10 @@ select option { background: #fff; }
   <div class="ph">
     <div>
       <div class="ph-title">자산 현황</div>
-      <div class="ph-sub">종목명 클릭 → 편집 · 🔄 눌러 시세 갱신</div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn-sm" onclick="fetchAllPrices()" id="refresh-btn">🔄 시세 갱신</button>
-      <button class="btn" onclick="openAddModal()">+ 추가</button>
+      <button class="btn" onclick="openAddModal()">추가</button>
     </div>
   </div>
 
@@ -425,7 +424,10 @@ select option { background: #fff; }
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-l">연 목표</div><div class="kpi-v color-gold" id="dv-goal">-</div></div>
     <div class="kpi"><div class="kpi-l">수령 합계</div><div class="kpi-v color-green" id="dv-total">-</div></div>
-    <div class="kpi"><div class="kpi-l">달성률</div><div class="kpi-v color-blue" id="dv-pct">-</div></div>
+ </div>
+
+    <div class="kpi-row">
+     <div class="kpi"><div class="kpi-l">달성률</div><div class="kpi-v color-blue" id="dv-pct">-</div></div>
     <div class="kpi"><div class="kpi-l">최고 월</div><div class="kpi-v color-gold" id="dv-best">-</div></div>
   </div>
 
