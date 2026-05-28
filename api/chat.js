@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       }
       return {
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text }]
+        parts: [{ text: text || ' ' }]
       };
     });
 
@@ -30,13 +30,18 @@ export default async function handler(req, res) {
       }
     };
 
-    // 웹검색 필요 시 Google Search grounding
     if (hasWebSearch) {
-      body.tools = [{ googleSearch: {} }];
+      body.tools = [{ google_search: {} }];
     }
 
-    const model = hasWebSearch ? 'gemini-2.0-flash' : 'gemini-1.5-flash';
+    // 웹검색은 flash-exp, 일반은 flash
+    const model = hasWebSearch
+      ? 'gemini-2.0-flash-exp'
+      : 'gemini-1.5-flash';
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    console.log('Calling Gemini:', model, 'webSearch:', hasWebSearch);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -45,16 +50,14 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    console.log('Gemini status:', response.status, 'error:', data.error?.message);
 
     if (!response.ok) {
-      console.error('Gemini error:', JSON.stringify(data));
-      return res.status(response.status).json({
-        error: data.error?.message || 'Gemini API error',
-        detail: data
+      return res.status(200).json({
+        content: [{ type: 'text', text: `[API 오류] ${data.error?.message || '알 수 없는 오류'}` }]
       });
     }
 
-    // Gemini 응답 → Anthropic 형식으로 변환 (기존 프론트 코드 호환)
     const parts = data.candidates?.[0]?.content?.parts || [];
     const text = parts.map(p => p.text || '').join('');
 
@@ -63,7 +66,10 @@ export default async function handler(req, res) {
     });
 
   } catch (e) {
-    console.error('Handler error:', e);
-    res.status(500).json({ error: e.message });
+    console.error('Handler error:', e.message);
+    // 500 대신 200으로 반환해서 프론트에서 에러 메시지 표시
+    res.status(200).json({
+      content: [{ type: 'text', text: `[서버 오류] ${e.message}` }]
+    });
   }
 }

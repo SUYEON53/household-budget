@@ -448,12 +448,15 @@ select option { background: #fff; }
 
 <!-- ════════════════════ MONTHLY ════════════════════ -->
 <div id="tab-monthly" class="page">
-  <div class="ph"><div class="ph-title">가계부</div></div>
+  <div class="ph">
+    <div class="ph-title">가계부</div>
+    <button class="btn-sm" onclick="openTxSettings()">⚙️ 항목 설정</button>
+  </div>
   <div class="month-nav">
     <button onclick="chM(-1)">‹</button>
     <div class="cur" id="m-label">-</div>
     <button onclick="chM(1)">›</button>
-    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:13px">+ 입력</button>
+    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:13px">입력</button>
   </div>
 
   <div class="kpi-row">
@@ -463,7 +466,10 @@ select option { background: #fff; }
   </div>
 
   <div class="card">
-    <div class="card-title">예산 현황</div>
+    <div class="card-title">
+      예산 현황
+      <button class="btn-sm" onclick="openBudgetSettings()">⚙️ 예산 설정</button>
+    </div>
     <div id="budget-pbs"></div>
   </div>
 
@@ -603,8 +609,26 @@ select option { background: #fff; }
       <div><label>종목/계좌</label><input type="text" id="dv-ticker" placeholder="SCHD"></div>
     </div>
     <div class="fr">
-      <div><label>금액 (원)</label><input type="number" id="dv-amt" placeholder="0"></div>
-      <div><label>메모</label><input type="text" id="dv-memo" placeholder="선택"></div>
+      <div><label>통화</label>
+        <select id="dv-currency" onchange="toggleDivFx(this.value)">
+          <option value="KRW">원 (KRW)</option>
+          <option value="USD">달러 (USD)</option>
+          <option value="JPY">엔화 (JPY)</option>
+        </select>
+      </div>
+      <div><label>금액</label><input type="number" id="dv-amt" placeholder="0"></div>
+    </div>
+    <div id="dv-fx-block" style="display:none;margin-bottom:12px">
+      <div class="fr">
+        <div><label>환율 (원/1단위)</label><input type="number" id="dv-rate" placeholder="USD: 1380, JPY: 9.2"></div>
+        <div><label>메모</label><input type="text" id="dv-memo" placeholder="선택"></div>
+      </div>
+      <div style="background:var(--gold-light);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text2)">
+        💡 원화 환산액 = 금액 × 환율로 자동 계산돼요
+      </div>
+    </div>
+    <div id="dv-memo-block" class="fr1" style="margin-bottom:12px">
+      <div><label>메모</label><input type="text" id="dv-memo2" placeholder="선택"></div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn-ghost" onclick="cm('ov-div')">취소</button>
@@ -627,17 +651,10 @@ select option { background: #fff; }
     </div>
     <div class="fr">
       <div><label>카테고리</label>
-        <select id="tx-cat">
-          <option>생활비</option><option>식비</option><option>식비-외식</option><option>식비-배달</option>
-          <option>육아</option><option>여가/유흥</option><option>의료비</option><option>생필품</option>
-          <option>개인용돈</option><option>통신비</option><option>관리비</option><option>대출금</option>
-          <option>고양이</option><option>배당/이자</option><option>기타</option>
-        </select>
+        <select id="tx-cat"></select>
       </div>
       <div><label>결제수단</label>
-        <select id="tx-from">
-          <option>하늘</option><option>수연</option><option>쿠팡</option><option>네이버페이</option><option>아나바다</option><option>서울페이</option><option>기타</option>
-        </select>
+        <select id="tx-from"></select>
       </div>
     </div>
     <div class="fr1"><div><label>내용</label><input type="text" id="tx-desc"></div></div>
@@ -662,8 +679,13 @@ const DEF_DIVS = [];
 
 const DEF_TXS = [];
 
-const BUDGET = { '식비':750000,'육아':200000,'여가/유흥':1000000,'의료비':70000,'생필품':100000,'관리비':150000,'대출금':820000,'통신비':39000,'고양이':50000,'개인용돈':500000 };
-const CAT_COLORS = { '식비':'#4c6ef5','식비-외식':'#3b5bdb','식비-배달':'#364fc7','육아':'#7048c8','여가/유흥':'#c07a00','의료비':'#e03e3e','생필품':'#2a9d5c','개인용돈':'#e8590c','통신비':'#0c8599','관리비':'#5f3dc4','대출금':'#c92a2a','고양이':'#e67700','생활비':'#2a9d5c','배당/이자':'#2a9d5c','기타':'#8890a8' };
+const DEF_BUDGET = {};  // 예산 기본값 없음 (설정에서 입력)
+const CAT_PALETTE = ['#4c6ef5','#7048c8','#c07a00','#e03e3e','#2a9d5c','#e8590c','#0c8599','#5f3dc4','#c92a2a','#e67700','#8890a8','#1971c2','#2f9e44','#f08c00','#d6336c'];
+function getCatColor(cat, idx) {
+  const map = txSettings.catColors || {};
+  if(map[cat]) return map[cat];
+  return CAT_PALETTE[idx % CAT_PALETTE.length];
+}
 const USD_KRW = 1380; // 참고 기본값
 const JPY_KRW = 9.2;  // 참고 기본값 (100엔 기준 아님, 1엔당)
 // 환율 가져오기 (항목에 저장된 값 우선, 없으면 기본값)
@@ -688,6 +710,12 @@ function loadLS(key, fallback) {
 }
 
 let goals   = loadLS('g5', {...DEF_GOALS});
+let txSettings = loadLS('txs_cfg', {
+  categories: ['생활비','식비','식비-외식','식비-배달','육아','여가/유흥','의료비','생필품','개인용돈','통신비','관리비','대출금','고양이','배당/이자','기타'],
+  payments: ['하늘','수연','쿠팡','네이버페이','아나바다','서울페이','기타'],
+  catColors: {}
+});
+let budget = loadLS('budget_cfg', {});
 let assets  = loadLS('a5', {mid:[], lng:[], cash:[]});
 // 키 무조건 보정
 if(!assets.mid)  assets.mid  = [];
@@ -706,6 +734,8 @@ const save = () => {
     localStorage.setItem('h5', JSON.stringify(history));
     localStorage.setItem('d5', JSON.stringify(divs));
     localStorage.setItem('t5', JSON.stringify(txs));
+    localStorage.setItem('txs_cfg', JSON.stringify(txSettings));
+    localStorage.setItem('budget_cfg', JSON.stringify(budget));
   } catch(e) {
     alert('저장 실패: ' + e.message);
   }
@@ -754,7 +784,7 @@ function groupTotalKRW(grp) {
 function allTotalKRW() {
   return ['mid','lng','cash'].reduce((s,g) => s + groupTotalKRW(g), 0);
 }
-function divTotal() { return divs.reduce((s,d)=>s+d.a, 0); }
+function divTotal() { return divs.reduce((s,d)=>s+(d.amtKRW||d.a), 0); }
 function divByMonth() {
   const map={}; divs.forEach(d=>{map[d.m]=(map[d.m]||[]);map[d.m].push(d);}); return map;
 }
@@ -833,7 +863,7 @@ function renderDash() {
   const ALL_M = Array.from({length:12},(_,i)=>`2026-${String(i+1).padStart(2,'0')}`);
   const LABELS = ['1','2','3','4','5','6','7','8','9','10','11','12'];
   const map=divByMonth();
-  const vals=ALL_M.map(m=>(map[m]||[]).reduce((s,d)=>s+d.a,0));
+  const vals=ALL_M.map(m=>(map[m]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0));
   const maxV=Math.max(...vals,1);
   document.getElementById('div-bar').innerHTML = ALL_M.map((m,i)=>{
     const v=vals[i], ht=Math.round((v/maxV)*95);
@@ -1186,7 +1216,7 @@ function renderDivTab(){
   const LABELS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
   const mTarget=goals.divGoal/12;
   document.getElementById('div-pbs').innerHTML=ALL_M.map((m,i)=>{
-    const v=(map[m]||[]).reduce((s,d)=>s+d.a,0), p=Math.min((v/mTarget)*100,100);
+    const v=(map[m]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0), p=Math.min((v/mTarget)*100,100);
     const col=v>mTarget?'var(--green)':v>mTarget*.5?'var(--gold)':'var(--red)';
     return `<div class="pb"><div class="pb-head"><span class="pb-label">${LABELS[i]}</span><span class="mono" style="font-size:12px;color:${v>0?col:'var(--muted)'};">${v>0?fmt(v)+'원':'미입력'} <span style="color:var(--muted)">/ ${fmt(Math.round(mTarget))}원</span></span></div><div class="pb-track"><div class="pb-fill" style="width:${p}%;background:${col}"></div></div></div>`;
   }).join('');
@@ -1195,16 +1225,52 @@ function renderDivTab(){
     const items=map[m], tot=items.reduce((s,d)=>s+d.a,0);
     return `<div class="div-month-block">
       <div class="dmb-head"><div class="dmb-month">${m.replace('-','년 ')}월</div><div class="dmb-total">${fmt(tot)}원</div></div>
-      <div class="dmb-entries">${items.map((d,i)=>`<div class="de"><span class="de-t">${d.t}</span><span class="de-a">${fmt(d.a)}</span><button class="btn-danger" style="font-size:11px" onclick="delDiv('${m}',${i})">✕</button></div>`).join('')}</div>
+      <div class="dmb-entries">${items.map((d,i)=>`<div class="de">
+  <span class="de-t">${d.t}</span>
+  <span class="de-a">${d.currency&&d.currency!=='KRW'
+    ? `${d.currency==='USD'?'$':'¥'}${d.a} <span style="color:var(--muted);font-size:10px">→ ${fmt(d.amtKRW||d.a)}원</span>`
+    : fmt(d.amtKRW||d.a)+'원'}</span>
+  <button class="btn-danger" style="font-size:11px" onclick="delDiv('${m}',${i})">✕</button>
+</div>`).join('')}</div>
     </div>`;
   }).join('')||'<div style="color:var(--muted);font-size:13px;padding:16px 0">배당 내역을 입력해주세요</div>';
 }
 function openDivModal(){ document.getElementById('ov-div').classList.add('on'); }
+function toggleDivFx(currency) {
+  const fx = document.getElementById('dv-fx-block');
+  const memo = document.getElementById('dv-memo-block');
+  if(currency==='USD'||currency==='JPY') {
+    fx.style.display='block'; memo.style.display='none';
+    document.getElementById('dv-rate').placeholder = currency==='USD'?'USD: 1380':'JPY: 9.2';
+  } else {
+    fx.style.display='none'; memo.style.display='block';
+  }
+}
 function addDiv(){
-  const m=document.getElementById('dv-month').value, t=document.getElementById('dv-ticker').value.trim(), a=parseInt(document.getElementById('dv-amt').value)||0;
-  if(!m||!t||!a)return alert('월, 종목, 금액 필수');
-  divs.push({m,t,a}); save(); cm('ov-div'); renderDivTab();
-  document.getElementById('dv-ticker').value=''; document.getElementById('dv-amt').value='';
+  const m = document.getElementById('dv-month').value;
+  const t = document.getElementById('dv-ticker').value.trim();
+  const a = parseFloat(document.getElementById('dv-amt').value)||0;
+  const currency = document.getElementById('dv-currency').value;
+  const rate = parseFloat(document.getElementById('dv-rate').value)||0;
+  const memo = currency!=='KRW'
+    ? document.getElementById('dv-memo').value.trim()
+    : document.getElementById('dv-memo2').value.trim();
+  if(!m||!t||!a) return alert('월, 종목, 금액 필수');
+
+  // 원화 환산
+  let amtKRW = a;
+  if(currency!=='KRW' && rate>0) amtKRW = Math.round(a * rate);
+  else if(currency!=='KRW') {
+    amtKRW = Math.round(a * (currency==='USD'?1380:9.2));
+  }
+
+  divs.push({m, t, a, currency, rate: rate||null, amtKRW, memo});
+  save(); cm('ov-div'); renderDivTab();
+  document.getElementById('dv-ticker').value='';
+  document.getElementById('dv-amt').value='';
+  document.getElementById('dv-rate').value='';
+  document.getElementById('dv-currency').value='KRW';
+  toggleDivFx('KRW');
 }
 function delDiv(month,i){ const md=divs.filter(d=>d.m===month); const gi=divs.indexOf(md[i]); if(gi>-1)divs.splice(gi,1); save(); renderDivTab(); }
 
@@ -1232,8 +1298,10 @@ function renderMonthly(){
   be.textContent=(bal>=0?'+':'')+fmt(bal)+'원'; be.className='kpi-v '+(bal>=0?'color-green':'color-red');
 
   const catAmt={};
-  mt.filter(t=>t.type==='expense').forEach(t=>{ const k=t.cat.startsWith('식비')?'식비':t.cat; catAmt[k]=(catAmt[k]||0)+t.amt; });
-  document.getElementById('budget-pbs').innerHTML=Object.entries(BUDGET).map(([cat,bgt])=>{
+  mt.filter(t=>t.type==='expense').forEach(t=>{ catAmt[t.cat]=(catAmt[t.cat]||0)+t.amt; });
+  document.getElementById('budget-pbs').innerHTML=Object.keys(budget).length===0
+    ? '<div style="color:var(--muted);font-size:13px;padding:8px 0">예산 설정 버튼을 눌러 카테고리별 예산을 입력하세요</div>'
+    : Object.entries(budget).map(([cat,bgt])=>{
     const act=catAmt[cat]||0, p=Math.min((act/bgt)*100,100);
     const col=act>bgt?'var(--red)':p>75?'var(--gold)':'var(--green)';
     return `<div class="pb"><div class="pb-head"><span class="pb-label">${cat}</span><span class="mono" style="font-size:12px;color:${col}">${fmt(act)} <span style="color:var(--muted)">/ ${fmt(bgt)}</span></span></div><div class="pb-track"><div class="pb-fill" style="width:${p}%;background:${col}"></div></div></div>`;
@@ -1242,7 +1310,8 @@ function renderMonthly(){
   let list=[...mt].sort((a,b)=>a.date.localeCompare(b.date));
   if(filterMode!=='all')list=list.filter(t=>t.type===filterMode);
   document.getElementById('tx-body').innerHTML=list.length?list.map(t=>{
-    const c=CAT_COLORS[t.cat]||'#8890a8', gi=txs.indexOf(t);
+    const catIdx=txSettings.categories.indexOf(t.cat);
+    const c=getCatColor(t.cat, catIdx>=0?catIdx:0), gi=txs.indexOf(t);
     return `<tr>
       <td style="color:var(--muted);white-space:nowrap;font-size:13px">${t.date.slice(5).replace('-','/')}</td>
       <td><span class="cat-badge" style="background:${c}18;color:${c}">${t.cat}</span></td>
@@ -1253,10 +1322,17 @@ function renderMonthly(){
     </tr>`;
   }).join(''):'<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">거래 내역 없음</td></tr>';
 }
+function fillTxSelects() {
+  const catSel = document.getElementById('tx-cat');
+  const fromSel = document.getElementById('tx-from');
+  if(catSel) catSel.innerHTML = txSettings.categories.map(c=>`<option>${c}</option>`).join('');
+  if(fromSel) fromSel.innerHTML = txSettings.payments.map(p=>`<option>${p}</option>`).join('');
+}
 function openTxModal(){
   const today=new Date();
   document.getElementById('tx-date').value=`${curY}-${String(curM).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   document.getElementById('tx-amt').value=''; document.getElementById('tx-desc').value='';
+  fillTxSelects();
   document.getElementById('ov-tx').classList.add('on');
 }
 function addTx(){
@@ -1328,17 +1404,25 @@ renderDash();
 // ── 엑셀 업로드 처리 ──
 let excelParsed = [];
 
-// SheetJS 동적 로드
+// SheetJS 동적 로드 (CDN 실패 시 fallback)
 let xlsxLoaded = false;
 async function loadXLSX() {
-  if(xlsxLoaded || window.XLSX) { xlsxLoaded=true; return true; }
-  return new Promise(resolve => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
-    s.onload = () => { xlsxLoaded=true; resolve(true); };
-    s.onerror = () => resolve(false);
-    document.head.appendChild(s);
-  });
+  if(window.XLSX) { xlsxLoaded=true; return true; }
+  const cdns = [
+    'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  ];
+  for(const src of cdns) {
+    const ok = await new Promise(resolve => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+    if(ok && window.XLSX) { xlsxLoaded=true; return true; }
+  }
+  return false;
 }
 
 async function handleExcelUpload(event) {
@@ -1361,13 +1445,15 @@ async function handleExcelUpload(event) {
         // XLSX 파싱
         const loaded = await loadXLSX();
         if(!loaded) {
-          alert('엑셀 라이브러리 로드 실패\nCSV 파일로 변환 후 다시 시도해주세요');
+          alert('엑셀 라이브러리 로드 실패\nCSV(.csv)로 저장 후 다시 시도해주세요');
           return;
         }
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_array(ws, {defval:''});
+        // sheet_to_json으로 헤더 포함 배열 추출
+        const jsonData = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        rows = jsonData.map(r => r.map(c => String(c||'').trim()));
       }
 
       if(rows.length < 2) return alert('데이터가 없습니다.');
@@ -1392,6 +1478,44 @@ async function parseWithClaude(rows) {
   // 최대 50행만 전송 (토큰 절약)
   const preview = rows.slice(0, 50);
   const tableText = preview.map(r => r.join(' | ')).join('\n');
+
+  // 직접 파싱 시도 (헤더가 분류/소분류/종목 형태인 경우)
+  const header = rows[0] || [];
+  const bunryuIdx = header.findIndex(h => String(h).includes('분류'));
+  const nameIdx   = header.findIndex(h => String(h).includes('종목') || String(h).includes('계좌'));
+  const tickerIdx = header.findIndex(h => String(h).includes('티커') || String(h).includes('Ticker'));
+  const exchIdx   = header.findIndex(h => String(h).includes('거래소'));
+  const curIdx    = header.findIndex(h => String(h).includes('원') && !String(h).includes('달러'));
+  const avgIdx    = header.findIndex(h => String(h).includes('평균') || String(h).includes('단가'));
+  const qtyIdx    = header.findIndex(h => String(h).includes('수량') || String(h).includes('보유'));
+  const priceIdx  = header.findIndex(h => String(h).includes('현재가'));
+  const subIdx    = header.findIndex(h => String(h).includes('소분류'));
+
+  const GRP_MAP = {'중기투자':'mid','장기투자':'lng','현금':'cash','단기':'cash','현금/단기':'cash'};
+  const CUR_MAP = {'원':'KRW','달러':'USD','엔':'JPY','USD':'USD','KRW':'KRW','JPY':'JPY'};
+
+  if(bunryuIdx>=0 && nameIdx>=0 && rows.length>1) {
+    // 직접 파싱 성공
+    excelParsed = rows.slice(1).filter(r=>r[nameIdx]).map(r=>{
+      const grpRaw = String(r[bunryuIdx]||'');
+      const grp = Object.entries(GRP_MAP).find(([k])=>grpRaw.includes(k))?.[1] || 'mid';
+      const curRaw = curIdx>=0 ? String(r[curIdx]||'') : '원';
+      const currency = CUR_MAP[curRaw] || (curRaw.includes('달러')?'USD':curRaw.includes('엔')?'JPY':'KRW');
+      return {
+        group: grp,
+        sub: subIdx>=0 ? String(r[subIdx]||'') : '',
+        name: String(r[nameIdx]||''),
+        ticker: tickerIdx>=0 ? String(r[tickerIdx]||'') : '',
+        currency,
+        avg: avgIdx>=0 ? (parseFloat(String(r[avgIdx]).replace(/,/g,''))||0) : 0,
+        qty: qtyIdx>=0 ? (parseFloat(String(r[qtyIdx]).replace(/,/g,''))||0) : 0,
+        cur: priceIdx>=0 && r[priceIdx]!=='' ? (parseFloat(String(r[priceIdx]).replace(/,/g,''))||null) : null,
+        mapping: '엑셀 컬럼 직접 파싱'
+      };
+    });
+    renderExcelPreview();
+    return;
+  }
 
   const prompt = `다음은 사용자의 자산 현황 엑셀 데이터입니다. 각 행을 분석해서 자산 항목으로 변환해주세요.
 
@@ -1503,6 +1627,139 @@ function importExcelData() {
   renderAssets();
   renderDash();
   alert(`✅ ${checked.length}개 항목이 추가되었습니다!`);
+}
+</script>
+
+
+<!-- 항목 설정 모달 -->
+<div class="ov" id="ov-tx-settings" onclick="oclose('ov-tx-settings',event)">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">⚙️ 항목 설정</div>
+
+    <!-- 카테고리 -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2)">카테고리</div>
+      <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="new-cat" placeholder="새 카테고리 입력" style="flex:1">
+        <button class="btn" onclick="addCat()" style="padding:9px 14px">추가</button>
+      </div>
+    </div>
+
+    <!-- 결제수단 -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2)">결제수단</div>
+      <div id="pay-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="new-pay" placeholder="새 결제수단 입력" style="flex:1">
+        <button class="btn" onclick="addPay()" style="padding:9px 14px">추가</button>
+      </div>
+    </div>
+
+    <button class="btn-ghost" onclick="cm('ov-tx-settings')" style="width:100%">닫기</button>
+  </div>
+</div>
+
+<!-- 예산 설정 모달 -->
+<div class="ov" id="ov-budget-settings" onclick="oclose('ov-budget-settings',event)">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">⚙️ 예산 설정</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">카테고리별 월 예산을 입력하세요. 0이면 예산 추적에서 제외돼요.</div>
+    <div id="budget-list" style="margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <select id="budget-cat-sel" style="flex:1"></select>
+      <input type="number" id="budget-amt-inp" placeholder="금액 (원)" style="flex:1">
+      <button class="btn" onclick="addBudgetCat()" style="padding:9px 14px;white-space:nowrap">추가</button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="cm('ov-budget-settings')">닫기</button>
+      <button class="btn" onclick="saveBudgetSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── 항목 설정 ──
+function openTxSettings() {
+  renderCatList(); renderPayList();
+  document.getElementById('ov-tx-settings').classList.add('on');
+}
+function renderCatList() {
+  document.getElementById('cat-list').innerHTML = txSettings.categories.map((c,i) => `
+    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-size:13px">
+      <span style="width:8px;height:8px;border-radius:2px;background:${getCatColor(c,i)};flex-shrink:0"></span>
+      ${c}
+      <button onclick="delCat(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;line-height:1">✕</button>
+    </div>`).join('');
+}
+function renderPayList() {
+  document.getElementById('pay-list').innerHTML = txSettings.payments.map((p,i) => `
+    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-size:13px">
+      ${p}
+      <button onclick="delPay(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;line-height:1">✕</button>
+    </div>`).join('');
+}
+function addCat() {
+  const v = document.getElementById('new-cat').value.trim();
+  if(!v) return;
+  if(txSettings.categories.includes(v)) return alert('이미 있는 카테고리예요');
+  txSettings.categories.push(v);
+  save(); renderCatList();
+  document.getElementById('new-cat').value='';
+}
+function delCat(i) {
+  if(!confirm(`"${txSettings.categories[i]}" 카테고리를 삭제할까요?`)) return;
+  txSettings.categories.splice(i,1); save(); renderCatList();
+}
+function addPay() {
+  const v = document.getElementById('new-pay').value.trim();
+  if(!v) return;
+  if(txSettings.payments.includes(v)) return alert('이미 있는 결제수단이에요');
+  txSettings.payments.push(v);
+  save(); renderPayList();
+  document.getElementById('new-pay').value='';
+}
+function delPay(i) {
+  if(!confirm(`"${txSettings.payments[i]}" 결제수단을 삭제할까요?`)) return;
+  txSettings.payments.splice(i,1); save(); renderPayList();
+}
+
+// ── 예산 설정 ──
+function openBudgetSettings() {
+  // 예산 카테고리 select 채우기
+  const sel = document.getElementById('budget-cat-sel');
+  sel.innerHTML = txSettings.categories.map(c=>`<option>${c}</option>`).join('');
+  renderBudgetList();
+  document.getElementById('ov-budget-settings').classList.add('on');
+}
+function renderBudgetList() {
+  document.getElementById('budget-list').innerHTML = Object.entries(budget).length === 0
+    ? '<div style="color:var(--muted);font-size:13px;padding:8px 0">아직 예산이 없어요. 아래에서 추가하세요.</div>'
+    : Object.entries(budget).map(([cat,amt]) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="font-weight:500">${cat}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="number" value="${amt}"
+            onchange="budget['${cat}']=parseInt(this.value)||0;save();"
+            style="width:110px;padding:5px 8px;font-size:13px;text-align:right">
+          <button onclick="delBudgetCat('${cat}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px">✕</button>
+        </div>
+      </div>`).join('');
+}
+function addBudgetCat() {
+  const cat = document.getElementById('budget-cat-sel').value;
+  const amt = parseInt(document.getElementById('budget-amt-inp').value)||0;
+  if(!cat) return;
+  budget[cat] = amt;
+  save(); renderBudgetList();
+  document.getElementById('budget-amt-inp').value='';
+}
+function delBudgetCat(cat) {
+  delete budget[cat]; save(); renderBudgetList();
+}
+function saveBudgetSettings() {
+  save(); cm('ov-budget-settings'); renderMonthly();
 }
 </script>
 
