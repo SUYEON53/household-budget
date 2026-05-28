@@ -456,7 +456,7 @@ select option { background: #fff; }
     <button onclick="chM(-1)">‹</button>
     <div class="cur" id="m-label">-</div>
     <button onclick="chM(1)">›</button>
-    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:13px">입력</button>
+    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:11px">입력</button>
   </div>
 
   <div class="kpi-row">
@@ -1138,9 +1138,31 @@ async function fetchAllPrices(){
     const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     const text=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-    const match=text.match(/\[[\s\S]*?\]/);
-    if(!match)throw new Error('no json');
-    const prices=JSON.parse(match[0]);
+    console.log('Gemini 응답:', text.slice(0,500));
+
+    // JSON 추출 — 여러 패턴 시도
+    let prices = [];
+    const patterns = [/```json([\s\S]*?)```/, /```([\s\S]*?)```/, /\[[\s\S]*?\]/];
+    for(const pat of patterns) {
+      const m = text.match(pat);
+      if(m) {
+        try {
+          const raw = m[1] || m[0];
+          const arr = JSON.parse(raw.trim());
+          if(Array.isArray(arr) && arr.length > 0) { prices = arr; break; }
+        } catch(e) {}
+      }
+    }
+
+    // 파싱 실패 시 응답 내용 그대로 보여줌
+    if(prices.length === 0) {
+      document.getElementById('pdot').className='price-dot err';
+      document.getElementById('price-status-txt').textContent = '파싱 실패 · 아래 Gemini 응답 확인';
+      document.getElementById('price-result-list').innerHTML =
+        `<div style="font-size:11px;color:var(--muted);background:var(--s2);padding:8px;border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto">${text.slice(0,600)}</div>`;
+      fetchLoading=false; document.getElementById('refresh-btn').textContent='🔄 시세 갱신'; document.getElementById('refresh-btn').disabled=false;
+      return;
+    }
     prices.forEach(p=>{
       [...assets.mid,...assets.lng].filter(a=>a.ticker===p.ticker).forEach(a=>a.cur=p.price);
     });
