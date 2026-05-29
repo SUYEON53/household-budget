@@ -1983,8 +1983,7 @@ async function parseAiInput() {
     document.getElementById('ai-parse-btn').style.display = 'none';
 
   } catch(e) {
-    alert('분석 실패: ' + e.message + '
-직접 입력해주세요.');
+    alert('분석 실패: ' + e.message + '직접 입력해주세요.');
   } finally {
     document.getElementById('ai-loading').style.display = 'none';
     document.getElementById('ai-parse-btn').disabled = false;
