@@ -7,54 +7,55 @@ export default async function handler(req, res) {
   try {
     const { messages, max_tokens } = req.body;
 
-    const FREE_MODELS = [
-      'meta-llama/llama-3.3-70b-instruct:free',
-      'meta-llama/llama-3.1-8b-instruct:free',
-      'google/gemma-3-27b-it:free',
-      'qwen/qwen-2.5-72b-instruct:free',
-      'mistralai/mistral-7b-instruct:free',
-    ];
-
-    let text = '';
-    let lastError = '';
-    for (const model of FREE_MODELS) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'https://household-budget-eta.vercel.app',
-            'X-Title': 'Household Budget',
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            max_tokens: max_tokens || 2000,
-            temperature: 0.3,
-          }),
-        });
-
-        const data = await response.json();
-        if (response.ok && data.choices?.[0]?.message?.content) {
-          text = data.choices[0].message.content;
-          console.log('Success with model:', model);
-          break;
+    // openrouter/free = 사용 가능한 무료 모델 자동 선택
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://household-budget-eta.vercel.app',
+        'X-Title': 'Household Budget',
+      },
+      body: JSON.stringify({
+        model: 'openrouter/auto',
+        messages,
+        max_tokens: max_tokens || 2000,
+        temperature: 0.3,
+        provider: {
+          allow_fallbacks: true,
+          require_parameters: true,
         }
-        lastError = data.error?.message || 'unknown';
-        console.log(`Model ${model} failed: ${lastError}`);
-      } catch(e) {
-        lastError = e.message;
-        console.log(`Model ${model} exception: ${e.message}`);
-      }
-    }
+      }),
+    });
 
-    if (!text) {
-      return res.status(200).json({
-        content: [{ type: 'text', text: `[오류] 모든 무료 모델 실패. 마지막 오류: ${lastError}` }]
+    const data = await response.json();
+
+    if (!response.ok || !data.choices?.[0]?.message?.content) {
+      // fallback: deepseek 무료
+      const fb = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://household-budget-eta.vercel.app',
+        },
+        body: JSON.stringify({
+          model: 'deepseek/deepseek-chat-v3-0324:free',
+          messages,
+          max_tokens: max_tokens || 2000,
+        }),
       });
+      const fbData = await fb.json();
+      const text = fbData.choices?.[0]?.message?.content || '';
+      if (!text) {
+        return res.status(200).json({
+          content: [{ type: 'text', text: `[오류] ${data.error?.message || fbData.error?.message || '사용 가능한 모델 없음'}` }]
+        });
+      }
+      return res.status(200).json({ content: [{ type: 'text', text }] });
     }
 
+    const text = data.choices[0].message.content;
     res.status(200).json({ content: [{ type: 'text', text }] });
 
   } catch (e) {
