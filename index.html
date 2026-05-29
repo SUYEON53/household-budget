@@ -450,7 +450,11 @@ select option { background: #fff; }
 <div id="tab-monthly" class="page">
   <div class="ph">
     <div class="ph-title">가계부</div>
-    <button class="btn-sm" onclick="openTxSettings()">⚙️ 항목 설정</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="openAiInput()">🤖 AI 입력</button>
+      <button class="btn-sm" onclick="openAiStats()">📊 AI 통계</button>
+      <button class="btn-sm" onclick="openTxSettings()">⚙️ 설정</button>
+    </div>
   </div>
   <div class="month-nav">
     <button onclick="chM(-1)">‹</button>
@@ -462,7 +466,6 @@ select option { background: #fff; }
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-l">수입</div><div class="kpi-v color-green" id="m-inc">-</div></div>
     <div class="kpi"><div class="kpi-l">지출</div><div class="kpi-v color-red" id="m-exp">-</div></div>
-    <div class="kpi"><div class="kpi-l">잔액</div><div class="kpi-v" id="m-bal">-</div></div>
   </div>
 
   <div class="card">
@@ -471,6 +474,24 @@ select option { background: #fff; }
       <button class="btn-sm" onclick="openBudgetSettings()">⚙️ 예산 설정</button>
     </div>
     <div id="budget-pbs"></div>
+  </div>
+
+  <!-- 카테고리별 합계 -->
+  <div class="card" id="cat-stats-card" style="display:none">
+    <div class="card-title">
+      카테고리별 합계
+      <div style="display:flex;gap:6px">
+        <button class="btn-sm" id="cat-stats-btn-exp" onclick="setCatStatsMode('expense')" style="font-size:11px;padding:4px 10px">지출</button>
+        <button class="btn-sm" id="cat-stats-btn-inc" onclick="setCatStatsMode('income')" style="font-size:11px;padding:4px 10px">수입</button>
+      </div>
+    </div>
+    <div id="cat-stats"></div>
+  </div>
+
+  <!-- 결제수단별 통계 -->
+  <div class="card" id="payment-stats-card" style="display:none">
+    <div class="card-title">결제수단별 지출</div>
+    <div id="payment-stats"></div>
   </div>
 
   <div class="card">
@@ -482,7 +503,7 @@ select option { background: #fff; }
         <button class="btn-sm" id="f-exp" onclick="setFilter('expense')">지출</button>
       </div>
     </div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th>결제</th><th class="r">금액</th><th></th></tr></thead><tbody id="tx-body"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>날짜</th><th>카테고리</th><th>내용</th><th class="r">금액</th><th></th></tr></thead><tbody id="tx-body"></tbody></table></div>
   </div>
 </div>
 
@@ -724,7 +745,8 @@ if(!assets.cash) assets.cash = [];
 let history = loadLS('h5', []);
 let divs    = loadLS('d5', []);
 let txs     = loadLS('t5', []);
-let curY=2026, curM=4, txType='income', filterMode='all';
+const _now = new Date();
+let curY=_now.getFullYear(), curM=_now.getMonth()+1, txType='income', filterMode='all';
 let groupOpen = {mid:true, lng:true, cash:true};
 
 const save = () => {
@@ -1313,11 +1335,8 @@ function renderMonthly(){
   const mt=txs.filter(t=>t.date.startsWith(ms));
   const inc=mt.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0);
   const exp=mt.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0);
-  const bal=inc-exp;
   document.getElementById('m-inc').textContent=fmt(inc)+'원';
   document.getElementById('m-exp').textContent=fmt(exp)+'원';
-  const be=document.getElementById('m-bal');
-  be.textContent=(bal>=0?'+':'')+fmt(bal)+'원'; be.className='kpi-v '+(bal>=0?'color-green':'color-red');
 
   const catAmt={};
   mt.filter(t=>t.type==='expense').forEach(t=>{ catAmt[t.cat]=(catAmt[t.cat]||0)+t.amt; });
@@ -1331,16 +1350,43 @@ function renderMonthly(){
 
   let list=[...mt].sort((a,b)=>a.date.localeCompare(b.date));
   if(filterMode!=='all')list=list.filter(t=>t.type===filterMode);
+  // 카테고리별 합계
+  window._catStatsMode = window._catStatsMode || 'expense';
+  renderCatStats(mt, window._catStatsMode);
+
+  // 결제수단별 통계
+  const payAmt = {};
+  mt.filter(t=>t.type==='expense').forEach(t=>{
+    payAmt[t.from] = (payAmt[t.from]||0) + t.amt;
+  });
+  const payEntries = Object.entries(payAmt).sort((a,b)=>b[1]-a[1]);
+  const statsCard = document.getElementById('payment-stats-card');
+  if(payEntries.length > 0) {
+    statsCard.style.display = 'block';
+    const maxPay = payEntries[0][1];
+    document.getElementById('payment-stats').innerHTML = payEntries.map(([pay,amt])=>{
+      const pct = Math.round((amt/maxPay)*100);
+      return `<div class="pb">
+        <div class="pb-head">
+          <span class="pb-label">${pay}</span>
+          <span class="mono" style="font-size:12px">${fmt(amt)}원</span>
+        </div>
+        <div class="pb-track"><div class="pb-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+      </div>`;
+    }).join('');
+  } else {
+    statsCard.style.display = 'none';
+  }
+
   document.getElementById('tx-body').innerHTML=list.length?list.map(t=>{
     const catIdx=txSettings.categories.indexOf(t.cat);
     const c=getCatColor(t.cat, catIdx>=0?catIdx:0), gi=txs.indexOf(t);
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openEditTx(${gi})" title="클릭해서 수정">
       <td style="color:var(--muted);white-space:nowrap;font-size:13px">${t.date.slice(5).replace('-','/')}</td>
       <td><span class="cat-badge" style="background:${c}18;color:${c}">${t.cat}</span></td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</td>
-      <td style="font-size:12px;color:var(--muted)">${t.from}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</td>
       <td class="r ${t.type==='income'?'color-green':'color-red'}" style="font-weight:600">${t.type==='income'?'+':'-'}${fmt(t.amt)}</td>
-      <td><button class="btn-danger" onclick="delTx(${gi})">✕</button></td>
+      <td onclick="event.stopPropagation()"><button class="btn-danger" onclick="delTx(${gi})">✕</button></td>
     </tr>`;
   }).join(''):'<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">거래 내역 없음</td></tr>';
 }
@@ -1782,6 +1828,437 @@ function delBudgetCat(cat) {
 }
 function saveBudgetSettings() {
   save(); cm('ov-budget-settings'); renderMonthly();
+}
+</script>
+
+
+<!-- AI 빠른 입력 모달 -->
+<div class="ov" id="ov-ai-input" onclick="oclose('ov-ai-input',event)">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">🤖 AI 빠른 입력</div>
+    <div class="modal-hint">
+      자연어로 입력하면 AI가 자동으로 분석해요.<br>
+      예시: "어제 스타벅스 5500원 카카오페이"<br>
+      예시: "이번달 1일 월급 350만원 수입"<br>
+      예시: "마트 장보기 87000원 현금 식비"
+    </div>
+    <div style="margin-bottom:12px">
+      <textarea id="ai-input-text" placeholder="거래 내용을 자유롭게 입력하세요..." 
+        style="width:100%;height:90px;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:14px;outline:none;resize:none;line-height:1.6"
+        onfocus="this.style.borderColor='var(--blue)'"
+        onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter'&&event.metaKey)parseAiInput()"></textarea>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Cmd+Enter 또는 버튼으로 분석</div>
+    </div>
+
+    <!-- 분석 결과 -->
+    <div id="ai-result" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">✅ 분석 결과 — 수정 후 저장하세요</div>
+      <div class="fr">
+        <div><label>날짜</label><input type="date" id="ai-date"></div>
+        <div><label>유형</label>
+          <select id="ai-type">
+            <option value="expense">지출</option>
+            <option value="income">수입</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr">
+        <div><label>카테고리</label><select id="ai-cat"></select></div>
+        <div><label>결제수단</label><select id="ai-from"></select></div>
+      </div>
+      <div class="fr">
+        <div><label>금액 (원)</label><input type="number" id="ai-amt"></div>
+        <div><label>내용</label><input type="text" id="ai-desc"></div>
+      </div>
+    </div>
+
+    <div id="ai-loading" style="display:none;text-align:center;padding:16px;color:var(--muted);font-size:13px">
+      🤖 분석 중...
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="cm('ov-ai-input')">취소</button>
+      <button class="btn-ghost" id="ai-parse-btn" onclick="parseAiInput()" style="flex:1">분석하기</button>
+      <button class="btn" id="ai-save-btn" onclick="saveAiInput()" style="display:none;flex:1">저장</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── AI 빠른 입력 ──
+function openAiInput() {
+  document.getElementById('ai-input-text').value = '';
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('ai-save-btn').style.display = 'none';
+  document.getElementById('ai-parse-btn').style.display = '';
+  document.getElementById('ai-loading').style.display = 'none';
+
+  // select 채우기
+  const catSel = document.getElementById('ai-cat');
+  const fromSel = document.getElementById('ai-from');
+  catSel.innerHTML = txSettings.categories.map(c=>`<option>${c}</option>`).join('');
+  fromSel.innerHTML = txSettings.payments.map(p=>`<option>${p}</option>`).join('');
+
+  // 오늘 날짜 기본값
+  const today = new Date();
+  document.getElementById('ai-date').value =
+    `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  document.getElementById('ov-ai-input').classList.add('on');
+  setTimeout(()=>document.getElementById('ai-input-text').focus(), 100);
+}
+
+async function parseAiInput() {
+  const text = document.getElementById('ai-input-text').value.trim();
+  if(!text) return alert('내용을 입력하세요');
+
+  document.getElementById('ai-loading').style.display = 'block';
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('ai-parse-btn').disabled = true;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const cats = txSettings.categories.join(', ');
+  const pays = txSettings.payments.join(', ');
+
+  const prompt = `다음 거래 내용을 분석해서 JSON으로 변환해주세요.
+
+입력: "${text}"
+오늘 날짜: ${todayStr}
+사용 가능한 카테고리: ${cats}
+사용 가능한 결제수단: ${pays}
+
+아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{"date":"YYYY-MM-DD","type":"expense 또는 income","category":"카테고리","payment":"결제수단","amount":숫자,"desc":"간단한 설명"}
+
+규칙:
+- 날짜: "어제"는 어제, "이번달 1일"처럼 명시되면 그 날짜, 없으면 오늘
+- type: 월급/수입/입금이면 income, 나머지는 expense
+- category: 위 목록 중 가장 적합한 것 선택
+- payment: 위 목록 중 가장 적합한 것, 없으면 첫 번째 항목
+- amount: 숫자만 (원, 만원 등 단위 제거, 만원이면 ×10000)
+- desc: 핵심 내용만 짧게`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200,
+      })
+    });
+
+    const data = await res.json();
+    const rawText = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+
+    // JSON 추출
+    const match = rawText.match(/\{[\s\S]*?\}/);
+    if(!match) throw new Error('파싱 실패: ' + rawText.slice(0,100));
+    const parsed = JSON.parse(match[0]);
+
+    // 결과 채우기
+    document.getElementById('ai-date').value = parsed.date || todayStr;
+    document.getElementById('ai-type').value = parsed.type || 'expense';
+    document.getElementById('ai-amt').value = parsed.amount || '';
+    document.getElementById('ai-desc').value = parsed.desc || '';
+
+    // 카테고리 select
+    const catSel = document.getElementById('ai-cat');
+    const catOpts = [...catSel.options];
+    const catMatch = catOpts.find(o => o.value === parsed.category);
+    if(catMatch) catSel.value = parsed.category;
+
+    // 결제수단 select
+    const fromSel = document.getElementById('ai-from');
+    const fromOpts = [...fromSel.options];
+    const fromMatch = fromOpts.find(o => o.value === parsed.payment);
+    if(fromMatch) fromSel.value = parsed.payment;
+
+    document.getElementById('ai-result').style.display = 'block';
+    document.getElementById('ai-save-btn').style.display = '';
+    document.getElementById('ai-parse-btn').style.display = 'none';
+
+  } catch(e) {
+    alert('분석 실패: ' + e.message + '
+직접 입력해주세요.');
+  } finally {
+    document.getElementById('ai-loading').style.display = 'none';
+    document.getElementById('ai-parse-btn').disabled = false;
+  }
+}
+
+function saveAiInput() {
+  const date = document.getElementById('ai-date').value;
+  const type = document.getElementById('ai-type').value;
+  const cat  = document.getElementById('ai-cat').value;
+  const from = document.getElementById('ai-from').value;
+  const amt  = parseInt(document.getElementById('ai-amt').value)||0;
+  const desc = document.getElementById('ai-desc').value.trim();
+
+  if(!date||!amt||!desc) return alert('날짜, 금액, 내용을 확인하세요');
+
+  txs.push({ date, cat, desc, from, amt, type });
+  save();
+  cm('ov-ai-input');
+  renderMonthly();
+
+  // 다음 입력 준비
+  document.getElementById('ai-input-text').value = '';
+}
+</script>
+
+
+<!-- 거래 편집 모달 -->
+<div class="ov" id="ov-edit-tx" onclick="oclose('ov-edit-tx',event)">
+  <div class="modal">
+    <div class="modal-title">거래 수정</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="et-inc" class="btn" style="flex:1;background:var(--green)" onclick="setEditTxType('income')">+ 수입</button>
+      <button id="et-exp" class="btn-ghost" style="flex:1" onclick="setEditTxType('expense')">− 지출</button>
+    </div>
+    <div class="fr">
+      <div><label>날짜</label><input type="date" id="et-date"></div>
+      <div><label>금액 (원)</label><input type="number" id="et-amt"></div>
+    </div>
+    <div class="fr">
+      <div><label>카테고리</label><select id="et-cat"></select></div>
+      <div><label>결제수단</label><select id="et-from"></select></div>
+    </div>
+    <div class="fr1"><div><label>내용</label><input type="text" id="et-desc"></div></div>
+    <input type="hidden" id="et-idx">
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="cm('ov-edit-tx')">취소</button>
+      <button class="btn" onclick="saveEditTx()">저장</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── 거래 편집 ──
+let editTxType = 'expense';
+
+function openEditTx(gi) {
+  const t = txs[gi];
+  if(!t) return;
+  editTxType = t.type || 'expense';
+
+  // select 채우기
+  document.getElementById('et-cat').innerHTML = txSettings.categories.map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('et-from').innerHTML = txSettings.payments.map(p=>`<option>${p}</option>`).join('');
+
+  document.getElementById('et-date').value = t.date;
+  document.getElementById('et-amt').value = t.amt;
+  document.getElementById('et-cat').value = t.cat;
+  document.getElementById('et-from').value = t.from;
+  document.getElementById('et-desc').value = t.desc;
+  document.getElementById('et-idx').value = gi;
+
+  setEditTxType(editTxType);
+  document.getElementById('ov-edit-tx').classList.add('on');
+}
+
+function setEditTxType(t) {
+  editTxType = t;
+  document.getElementById('et-inc').className = t==='income'?'btn':'btn-ghost';
+  document.getElementById('et-inc').style.cssText = t==='income'?'flex:1;background:var(--green)':'flex:1';
+  document.getElementById('et-exp').className = t==='expense'?'btn':'btn-ghost';
+  document.getElementById('et-exp').style.cssText = t==='expense'?'flex:1;background:var(--red);color:#fff':'flex:1';
+}
+
+function saveEditTx() {
+  const gi = parseInt(document.getElementById('et-idx').value);
+  const date = document.getElementById('et-date').value;
+  const amt  = parseInt(document.getElementById('et-amt').value)||0;
+  const cat  = document.getElementById('et-cat').value;
+  const from = document.getElementById('et-from').value;
+  const desc = document.getElementById('et-desc').value.trim();
+  if(!date||!amt||!desc) return alert('날짜, 금액, 내용을 입력하세요');
+  txs[gi] = { date, cat, desc, from, amt, type: editTxType };
+  save(); cm('ov-edit-tx'); renderMonthly();
+}
+</script>
+
+
+<script>
+// ── 카테고리별 합계 ──
+function setCatStatsMode(mode) {
+  window._catStatsMode = mode;
+  // 버튼 스타일
+  document.getElementById('cat-stats-btn-exp').style.cssText =
+    mode==='expense' ? 'font-size:11px;padding:4px 10px;background:var(--red-light);border-color:var(--red);color:var(--red)' : 'font-size:11px;padding:4px 10px';
+  document.getElementById('cat-stats-btn-inc').style.cssText =
+    mode==='income' ? 'font-size:11px;padding:4px 10px;background:var(--green-light);border-color:var(--green);color:var(--green)' : 'font-size:11px;padding:4px 10px';
+
+  // 현재 달 거래 다시 계산
+  const ms = `${curY}-${String(curM).padStart(2,'0')}`;
+  const mt = txs.filter(t=>t.date.startsWith(ms));
+  renderCatStats(mt, mode);
+}
+
+function renderCatStats(mt, mode) {
+  const filtered = mt.filter(t=>t.type===mode);
+  const total = filtered.reduce((s,t)=>s+t.amt, 0);
+
+  const catAmt = {};
+  filtered.forEach(t=>{ catAmt[t.cat]=(catAmt[t.cat]||0)+t.amt; });
+  const entries = Object.entries(catAmt).sort((a,b)=>b[1]-a[1]);
+
+  const card = document.getElementById('cat-stats-card');
+  if(entries.length === 0) { card.style.display='none'; return; }
+  card.style.display = 'block';
+
+  // 버튼 초기 스타일
+  const expBtn = document.getElementById('cat-stats-btn-exp');
+  const incBtn = document.getElementById('cat-stats-btn-inc');
+  if(expBtn) expBtn.style.cssText = mode==='expense'
+    ? 'font-size:11px;padding:4px 10px;background:var(--red-light);border-color:var(--red);color:var(--red)'
+    : 'font-size:11px;padding:4px 10px';
+  if(incBtn) incBtn.style.cssText = mode==='income'
+    ? 'font-size:11px;padding:4px 10px;background:var(--green-light);border-color:var(--green);color:var(--green)'
+    : 'font-size:11px;padding:4px 10px';
+
+  const maxAmt = entries[0][1];
+  const color = mode==='expense' ? 'var(--red)' : 'var(--green)';
+
+  document.getElementById('cat-stats').innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+      <span>총 ${mode==='expense'?'지출':'수입'} <b style="color:var(--text)">${entries.length}개 카테고리</b></span>
+      <span style="font-family:var(--mono);font-weight:700;color:${color}">${fmt(total)}원</span>
+    </div>
+    ${entries.map(([cat,amt])=>{
+      const pct = Math.round((amt/total)*100);
+      const barPct = Math.round((amt/maxAmt)*100);
+      const catIdx = txSettings.categories.indexOf(cat);
+      const c = getCatColor(cat, catIdx>=0?catIdx:0);
+      return `<div class="pb" style="margin-bottom:10px">
+        <div class="pb-head" style="margin-bottom:5px">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="width:8px;height:8px;border-radius:2px;background:${c};flex-shrink:0"></span>
+            <span class="pb-label">${cat}</span>
+            <span style="font-size:11px;color:var(--muted)">${pct}%</span>
+          </div>
+          <span class="mono" style="font-size:13px;font-weight:600;color:${color}">${fmt(amt)}원</span>
+        </div>
+        <div class="pb-track"><div class="pb-fill" style="width:${barPct}%;background:${c}"></div></div>
+      </div>`;
+    }).join('')}
+  `;
+}
+</script>
+
+
+<!-- AI 통계 모달 -->
+<div class="ov" id="ov-ai-stats" onclick="oclose('ov-ai-stats',event)">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">📊 AI 통계 분석</div>
+    <div class="modal-hint">
+      궁금한 내용을 자유롭게 물어보세요.<br>
+      예: "식비 중 대장님이 결제한 거 합계"<br>
+      예: "이번달 가장 많이 쓴 카테고리"<br>
+      예: "쿠팡으로 결제한 총액"<br>
+      예: "주말에 쓴 식비 합계"
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="ai-stats-input" placeholder="질문을 입력하세요..."
+        style="flex:1" onkeydown="if(event.key==='Enter')askAiStats()">
+      <button class="btn" onclick="askAiStats()" style="padding:9px 16px;white-space:nowrap">분석</button>
+    </div>
+
+    <!-- 빠른 질문 버튼 -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px" id="quick-questions"></div>
+
+    <!-- 결과 -->
+    <div id="ai-stats-loading" style="display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px">🤖 분석 중...</div>
+    <div id="ai-stats-result" style="display:none;background:var(--s2);border-radius:10px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-break:break-word"></div>
+
+    <div style="margin-top:14px">
+      <button class="btn-ghost" onclick="cm('ov-ai-stats')" style="width:100%">닫기</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── AI 통계 분석 ──
+function openAiStats() {
+  document.getElementById('ai-stats-input').value = '';
+  document.getElementById('ai-stats-result').style.display = 'none';
+  document.getElementById('ai-stats-loading').style.display = 'none';
+
+  // 빠른 질문 버튼 생성
+  const quickQs = [
+    '이번달 카테고리별 지출 합계',
+    '가장 많이 쓴 카테고리 TOP 3',
+    '결제수단별 총 사용금액',
+    '수입 대비 지출 비율',
+    '주말 vs 평일 지출 비교',
+  ];
+  document.getElementById('quick-questions').innerHTML = quickQs.map(q=>
+    `<button class="btn-sm" onclick="document.getElementById('ai-stats-input').value='${q}';askAiStats()" style="font-size:11px;padding:4px 10px">${q}</button>`
+  ).join('');
+
+  document.getElementById('ov-ai-stats').classList.add('on');
+  setTimeout(()=>document.getElementById('ai-stats-input').focus(), 100);
+}
+
+async function askAiStats() {
+  const question = document.getElementById('ai-stats-input').value.trim();
+  if(!question) return alert('질문을 입력하세요');
+
+  document.getElementById('ai-stats-loading').style.display = 'block';
+  document.getElementById('ai-stats-result').style.display = 'none';
+
+  // 현재 달 거래 데이터 준비
+  const ms = `${curY}-${String(curM).padStart(2,'0')}`;
+  const mt = txs.filter(t=>t.date.startsWith(ms));
+
+  // 데이터를 텍스트로 변환
+  const dataText = mt.map(t=>
+    `${t.date} | ${t.type==='income'?'수입':'지출'} | ${t.cat} | ${t.desc} | ${t.from} | ${t.amt.toLocaleString()}원`
+  ).join('\n');
+
+  const totalInc = mt.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0);
+  const totalExp = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0);
+
+  const prompt = `다음은 ${curY}년 ${curM}월 가계부 데이터입니다.
+
+=== 거래 내역 (날짜|유형|카테고리|내용|결제수단|금액) ===
+${dataText || '(거래 내역 없음)'}
+
+=== 요약 ===
+총 수입: ${totalInc.toLocaleString()}원
+총 지출: ${totalExp.toLocaleString()}원
+거래 건수: ${mt.length}건
+
+=== 질문 ===
+${question}
+
+위 데이터를 분석해서 질문에 답해주세요. 숫자는 원 단위로 명확하게, 간결하게 답변해주세요.`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+      })
+    });
+    const data = await res.json();
+    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+
+    document.getElementById('ai-stats-result').style.display = 'block';
+    document.getElementById('ai-stats-result').textContent = text || '분석 결과가 없습니다.';
+  } catch(e) {
+    document.getElementById('ai-stats-result').style.display = 'block';
+    document.getElementById('ai-stats-result').textContent = '분석 실패: ' + e.message;
+  } finally {
+    document.getElementById('ai-stats-loading').style.display = 'none';
+  }
 }
 </script>
 
