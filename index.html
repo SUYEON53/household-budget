@@ -1136,6 +1136,7 @@ function saveAsset() {
 function delAsset(grp,i){ if(!confirm('삭제할까요?'))return; assets[grp].splice(i,1); save(); renderAssets(); renderDash(); }
 
 // ── 시세 갱신 ──
+let fetchLoading = false;
 async function fetchAllPrices(){
   if(fetchLoading) return;
   const tickerItems = [...assets.mid,...assets.lng].filter(a=>a.ticker && a.ticker.length>0);
@@ -1277,6 +1278,7 @@ function saveAsset() {
 function delAsset(grp,i){ if(!confirm('삭제할까요?'))return; assets[grp].splice(i,1); save(); renderAssets(); renderDash(); }
 
 // ── 시세 갱신 ──
+let fetchLoading = false;
 async function fetchAllPrices(){
   if(fetchLoading)return;
   const tickerItems=[...assets.mid,...assets.lng].filter(a=>a.ticker&&a.ticker.length>0);
