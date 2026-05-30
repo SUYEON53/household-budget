@@ -625,8 +625,11 @@ select option { background: #fff; }
       <button class="btn-ghost" onclick="cm('ov-hist')">취소</button>
       <button class="btn" onclick="addHist()">저장</button>
     </div>
-    <div class="card-title">기록</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="card-title" style="margin:0">기록</div>
+    </div>
     <div id="hist-list"></div>
+    <button class="btn-ghost" onclick="cm('ov-hist')" style="width:100%;margin-top:14px">닫기</button>
   </div>
 </div>
 
@@ -2120,8 +2123,12 @@ function addHist(){
   const idx = history.findIndex(h=>h.m===m);
   if(idx>-1) history[idx].v=v; else history.push({m,v});
   history.sort((a,b)=>a.m.localeCompare(b.m));
-  save(); renderHistList();
+  save();
+  renderHistList();
+  renderDash(); // 그래프 즉시 갱신
   document.getElementById('h-val').value='';
+  // 저장 후 모달 닫기
+  cm('ov-hist');
 }
 function delHist(i){ history.splice(i,1); save(); renderHistList(); }
 </script>
