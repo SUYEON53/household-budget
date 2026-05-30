@@ -7,28 +7,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f4f6fb;
+  --bg: #f7f8fc;
   --s1: #ffffff;
-  --s2: #f0f3fa;
-  --s3: #e6eaf5;
-  --border: #dde2f0;
-  --blue: #4c6ef5;
-  --blue-light: #eef1ff;
-  --green: #2a9d5c;
-  --green-light: #edfbf3;
-  --red: #e03e3e;
-  --red-light: #fff0f0;
-  --gold: #c07a00;
-  --gold-light: #fff8e6;
-  --purple: #7048c8;
-  --purple-light: #f3eeff;
-  --text: #1a1d2e;
-  --text2: #4a4f68;
-  --muted: #8890a8;
+  --s2: #f2f4f9;
+  --s3: #eaecf4;
+  --border: #e2e6f0;
+  --blue: #7b9fd4;
+  --blue-light: #eef3fb;
+  --green: #6bab8a;
+  --green-light: #edf7f2;
+  --red: #d47b7b;
+  --red-light: #fdf2f2;
+  --gold: #c9a96e;
+  --gold-light: #fdf8ee;
+  --purple: #9b8fcc;
+  --purple-light: #f3f1fb;
+  --text: #3a3d52;
+  --text2: #5a5e78;
+  --muted: #9da3bc;
   --mono: 'DM Mono', monospace;
   --sans: 'Noto Sans KR', sans-serif;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
-  --shadow: 0 2px 8px rgba(0,0,0,.07), 0 6px 24px rgba(0,0,0,.05);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03);
+  --shadow: 0 2px 8px rgba(0,0,0,.05), 0 6px 24px rgba(0,0,0,.04);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
@@ -38,7 +38,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .nav { display: flex; align-items: center; gap: 6px; padding: 10px 16px; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 200; border-bottom: 1px solid var(--border); overflow-x: auto; box-shadow: var(--shadow-sm); }
 .logo { font-weight: 900; font-size: 15px; color: var(--blue); white-space: nowrap; margin-right: 10px; letter-spacing: -.3px; }
 .tab { background: none; border: 1.5px solid var(--border); color: var(--muted); padding: 5px 14px; border-radius: 20px; font-size: 13px; font-family: var(--sans); cursor: pointer; white-space: nowrap; transition: all .15s; font-weight: 500; }
-.tab.on { background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 700; box-shadow: 0 2px 8px rgba(76,110,245,.3); }
+.tab.on { background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 700; box-shadow: 0 2px 8px rgba(123,159,212,.3); }
 
 /* ── PAGES ── */
 .page { display: none; padding: 16px; max-width: 900px; margin: 0 auto; padding-bottom: 60px; }
@@ -100,7 +100,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
 /* ── BUTTONS ── */
-.btn { background: var(--blue); color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all .15s; box-shadow: 0 2px 8px rgba(76,110,245,.25); }
+.btn { background: var(--blue); color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all .15s; box-shadow: 0 2px 8px rgba(123,159,212,.3); }
 .btn:hover { opacity: .88; }
 .btn-sm { background: none; border: 1px solid var(--border); color: var(--text2); padding: 5px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; font-family: var(--sans); transition: all .15s; white-space: nowrap; }
 .btn-sm:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
@@ -274,13 +274,13 @@ select option { background: #fff; }
   <!-- 목표 링 2개 -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <!-- 배당 목표 -->
-    <div class="card" style="border-color:rgba(192,122,0,.2);background:var(--gold-light)">
+    <div class="card" style="border-color:rgba(201,169,110,.25);background:var(--gold-light)">
       <div class="card-title" style="color:var(--gold)">배당 목표 달성</div>
       <div class="goal-block">
         <div class="ring-wrap">
           <svg viewBox="0 0 120 120" width="120" height="120">
             <circle cx="60" cy="60" r="46" fill="none" stroke="#e6eaf5" stroke-width="9"/>
-            <circle id="div-ring" cx="60" cy="60" r="46" fill="none" stroke="#2a9d5c"
+            <circle id="div-ring" cx="60" cy="60" r="46" fill="none" stroke="#6bab8a"
               stroke-width="9" stroke-dasharray="289.0" stroke-dashoffset="200"
               stroke-linecap="round"/>
           </svg>
@@ -304,7 +304,7 @@ select option { background: #fff; }
         <div class="ring-wrap">
           <svg viewBox="0 0 120 120" width="120" height="120">
             <circle cx="60" cy="60" r="46" fill="none" stroke="#e6eaf5" stroke-width="9"/>
-            <circle id="asset-ring" cx="60" cy="60" r="46" fill="none" stroke="#7048c8"
+            <circle id="asset-ring" cx="60" cy="60" r="46" fill="none" stroke="#9b8fcc"
               stroke-width="9" stroke-dasharray="289.0" stroke-dashoffset="284"
               stroke-linecap="round"/>
           </svg>
@@ -710,7 +710,7 @@ const DEF_DIVS = [];
 const DEF_TXS = [];
 
 const DEF_BUDGET = {};  // 예산 기본값 없음 (설정에서 입력)
-const CAT_PALETTE = ['#4c6ef5','#7048c8','#c07a00','#e03e3e','#2a9d5c','#e8590c','#0c8599','#5f3dc4','#c92a2a','#e67700','#8890a8','#1971c2','#2f9e44','#f08c00','#d6336c'];
+const CAT_PALETTE = ['#7b9fd4','#9b8fcc','#c9a96e','#d47b7b','#6bab8a','#d4956b','#6badb5','#8f87c9','#c98080','#c9a050','#9da3bc','#6b9ec9','#7cb98a','#c9b06b','#c48faa'];
 function getCatColor(cat, idx) {
   const map = txSettings.catColors || {};
   if(map[cat]) return map[cat];
@@ -940,14 +940,14 @@ function drawLine() {
   ctx.lineTo(px(vals.length-1),pad.t+cH);ctx.lineTo(px(0),pad.t+cH);ctx.closePath();
   ctx.fillStyle=grad;ctx.fill();
   // line
-  ctx.beginPath();ctx.strokeStyle='#4c6ef5';ctx.lineWidth=2.5;ctx.lineJoin='round';
+  ctx.beginPath();ctx.strokeStyle='#7b9fd4';ctx.lineWidth=2.5;ctx.lineJoin='round';
   ctx.moveTo(px(0),py(vals[0]));
   for(let i=1;i<vals.length;i++){const mx=(px(i-1)+px(i))/2;ctx.bezierCurveTo(mx,py(vals[i-1]),mx,py(vals[i]),px(i),py(vals[i]));}
   ctx.stroke();
   // dots + labels
   vals.forEach((v,i)=>{
     ctx.beginPath();ctx.arc(px(i),py(v),6,0,Math.PI*2);ctx.fillStyle='rgba(76,110,245,.15)';ctx.fill();
-    ctx.beginPath();ctx.arc(px(i),py(v),3.5,0,Math.PI*2);ctx.fillStyle='#4c6ef5';ctx.fill();
+    ctx.beginPath();ctx.arc(px(i),py(v),3.5,0,Math.PI*2);ctx.fillStyle='#7b9fd4';ctx.fill();
     ctx.fillStyle='rgba(26,29,46,.8)';ctx.font='bold 10px DM Mono';ctx.textAlign='center';
     ctx.fillText(fmt(v)+'만',px(i),Math.max(py(v)-10,pad.t+10));
     ctx.fillStyle='rgba(136,144,168,.9)';ctx.font='10px Noto Sans KR';
@@ -960,7 +960,7 @@ function drawDonut(mid,lng,cash) {
   const canvas=document.getElementById('donut-canvas');
   const ctx=canvas.getContext('2d');
   const total=mid+lng+cash||1;
-  const data=[{v:mid,color:'#7048c8',label:'중기투자'},{v:lng,color:'#4c6ef5',label:'장기투자'},{v:cash,color:'#2a9d5c',label:'현금/단기'}];
+  const data=[{v:mid,color:'#9b8fcc',label:'중기투자'},{v:lng,color:'#7b9fd4',label:'장기투자'},{v:cash,color:'#6bab8a',label:'현금/단기'}];
   ctx.clearRect(0,0,120,120);
   let angle=-Math.PI/2;
   data.forEach(d=>{
@@ -1888,15 +1888,18 @@ function saveEditTx() {
 function setCatStatsMode(mode) {
   window._catStatsMode = mode;
   // 버튼 스타일
-  document.getElementById('cat-stats-btn-exp').style.cssText =
-    mode==='expense' ? 'font-size:11px;padding:4px 10px;background:var(--red-light);border-color:var(--red);color:var(--red)' : 'font-size:11px;padding:4px 10px';
-  document.getElementById('cat-stats-btn-inc').style.cssText =
-    mode==='income' ? 'font-size:11px;padding:4px 10px;background:var(--green-light);border-color:var(--green);color:var(--green)' : 'font-size:11px;padding:4px 10px';
+  const expBtn = document.getElementById('cat-stats-btn-exp');
+  const incBtn = document.getElementById('cat-stats-btn-inc');
+  if(expBtn) expBtn.style.cssText = mode==='expense' ? 'font-size:11px;padding:4px 10px;background:var(--red-light);border-color:var(--red);color:var(--red)' : 'font-size:11px;padding:4px 10px';
+  if(incBtn) incBtn.style.cssText = mode==='income' ? 'font-size:11px;padding:4px 10px;background:var(--green-light);border-color:var(--green);color:var(--green)' : 'font-size:11px;padding:4px 10px';
 
   // 현재 달 거래 다시 계산
   const ms = `${curY}-${String(curM).padStart(2,'0')}`;
   const mt = txs.filter(t=>t.date.startsWith(ms));
   renderCatStats(mt, mode);
+  // 카드 항상 표시 유지
+  const card = document.getElementById('cat-stats-card');
+  if(card) card.style.display = 'block';
 }
 
 function renderCatStats(mt, mode) {
@@ -1908,7 +1911,17 @@ function renderCatStats(mt, mode) {
   const entries = Object.entries(catAmt).sort((a,b)=>b[1]-a[1]);
 
   const card = document.getElementById('cat-stats-card');
-  if(entries.length === 0) { card.style.display='none'; return; }
+  card.style.display = 'block';  // 항상 표시
+  if(entries.length === 0) {
+    document.getElementById('cat-stats').innerHTML = 
+      `<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">${mode==='expense'?'지출':'수입'} 내역이 없습니다</div>`;
+    // 버튼 스타일만 업데이트하고 리턴
+    const expBtn=document.getElementById('cat-stats-btn-exp');
+    const incBtn=document.getElementById('cat-stats-btn-inc');
+    if(expBtn) expBtn.style.cssText=mode==='expense'?'font-size:11px;padding:4px 10px;background:var(--red-light);border-color:var(--red);color:var(--red)':'font-size:11px;padding:4px 10px';
+    if(incBtn) incBtn.style.cssText=mode==='income'?'font-size:11px;padding:4px 10px;background:var(--green-light);border-color:var(--green);color:var(--green)':'font-size:11px;padding:4px 10px';
+    return;
+  }
   card.style.display = 'block';
 
   // 버튼 초기 스타일
