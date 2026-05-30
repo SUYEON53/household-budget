@@ -217,7 +217,8 @@ select option { background: #fff; }
   <button class="tab" onclick="goTab('assets',this)">🏦 자산현황</button>
   <button class="tab" onclick="goTab('dividend',this)">💸 배당</button>
   <button class="tab" onclick="goTab('monthly',this)">📝 가계부</button>
-  <button onclick="resetData()" style="margin-left:auto;background:none;border:1px solid #ffcccc;color:#e03e3e;padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0">🗑 초기화</button>
+  <button onclick="checkStorage()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0">🔍 진단</button>
+  <button onclick="resetData()" style="background:none;border:1px solid #ffcccc;color:#e03e3e;padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0">🗑 초기화</button>
 </nav>
 
 <!-- ════════════════════ DASHBOARD ════════════════════ -->
@@ -371,13 +372,11 @@ select option { background: #fff; }
     </div>
   </div>
 
-  <!-- 시세 갱신 상태 -->
-  <div id="price-status" style="display:none" class="card" style="padding:10px 16px;font-size:12px;color:var(--text2)">
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="price-dot" id="pdot"></div>
-      <span id="price-status-txt"></span>
-    </div>
-    <div id="price-result-list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px"></div>
+  <!-- 시세 갱신 상태 (숨김 - 버튼 텍스트로만 표시) -->
+  <div id="price-status" style="display:none">
+    <div id="pdot"></div>
+    <span id="price-status-txt"></span>
+    <div id="price-result-list"></div>
   </div>
 
   <!-- 중기투자 -->
@@ -1147,11 +1146,7 @@ async function fetchAllPrices(){
   fetchLoading = true;
   const btn = document.getElementById('refresh-btn');
   btn.textContent = '⏳ 조회중...'; btn.disabled = true;
-  const ps = document.getElementById('price-status');
-  ps.style.display = 'block';
-  document.getElementById('pdot').className = 'price-dot loading';
-  document.getElementById('price-status-txt').textContent = `${tickerItems.length}개 종목 시세 조회 중...`;
-  document.getElementById('price-result-list').innerHTML = '';
+  btn.textContent = `⏳ ${tickerItems.length}개 조회중...`;
 
   try {
     const res = await fetch('/api/price', {
@@ -1182,39 +1177,21 @@ async function fetchAllPrices(){
         .filter(a => a.ticker === p.ticker)
         .forEach(a => a.cur = p.price);
     });
-    // 새 토큰 발급된 경우 화면에 표시
+    // 새 토큰 발급된 경우 알림
     if (data.newToken) {
-      document.getElementById('price-result-list').innerHTML +=
-        `<div style="margin-top:10px;padding:10px;background:#fff3cd;border-radius:8px;font-size:12px;word-break:break-all">
-          <b>⚠️ 새 토큰 발급됨 — Vercel KIS_TOKEN 환경변수에 저장하세요:</b><br>
-          <span id="new-token-val" style="font-family:var(--mono);font-size:11px">${data.newToken}</span>
-          <button onclick="navigator.clipboard.writeText('${data.newToken}').then(()=>alert('복사됨!'))" 
-            style="margin-left:8px;padding:3px 8px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">복사</button>
-        </div>`;
+      if(confirm('새 토큰이 발급되었습니다.\nVercel KIS_TOKEN 환경변수에 저장하시겠어요?\n\n(확인 클릭 시 클립보드에 복사)')) {
+        navigator.clipboard.writeText(data.newToken).then(()=>alert('토큰이 클립보드에 복사되었습니다!'));
+      }
     }
     save(); renderAssets(); renderDash();
 
     const now = new Date();
-    document.getElementById('pdot').className = 'price-dot done';
-    document.getElementById('price-status-txt').textContent =
-      `${prices.length}/${tickerItems.length}개 업데이트 · ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
-
-    // 결과 표시
-    document.getElementById('price-result-list').innerHTML = prices.map(p => {
-      const item = tickerItems.find(a=>a.ticker===p.ticker);
-      const avgKRW = item ? (item.currency==='USD'?item.avg*USD_KRW:item.avg) : 0;
-      const curKRW = p.currency==='USD' ? p.price*USD_KRW : p.price;
-      const pct = avgKRW>0 ? ((curKRW-avgKRW)/avgKRW*100) : null;
-      return `<div class="de" style="background:var(--blue-light);border-color:rgba(76,110,245,.2)">
-        <span class="de-t" style="color:var(--blue)">${p.ticker}</span>
-        <span class="de-a">${p.currency==='USD'?'$'+p.price.toFixed(2):p.price.toLocaleString()+'원'}</span>
-        ${pct!==null?`<span style="font-size:11px;font-family:var(--mono);color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>`:''}
-      </div>`;
-    }).join('');
+    btn.textContent = `✅ ${prices.length}개 완료`;
+    setTimeout(() => { btn.textContent = '🔄 시세 갱신'; }, 3000);
 
   } catch(e) {
-    document.getElementById('pdot').className = 'price-dot err';
-    document.getElementById('price-status-txt').textContent = '오류: ' + e.message;
+    btn.textContent = '❌ 오류';
+    setTimeout(() => { btn.textContent = '🔄 시세 갱신'; }, 3000);
   } finally {
     fetchLoading = false;
     btn.textContent = '🔄 시세 갱신'; btn.disabled = false;
@@ -2124,6 +2101,244 @@ function addHist(){
   document.getElementById('h-val').value='';
 }
 function delHist(i){ history.splice(i,1); save(); renderHistList(); }
+</script>
+
+
+<script>
+// ── 앱 진입 시 자동 시세 갱신 (오늘 아직 안 했으면) ──
+(function autoRefreshOnLoad() {
+  const today = new Date().toDateString();
+  const lastRefresh = localStorage.getItem('lastPriceRefresh');
+  const tickerItems = [...assets.mid, ...assets.lng].filter(a => a.ticker && a.ticker.length > 0);
+
+  if (tickerItems.length === 0) return;
+
+  if (lastRefresh !== today) {
+    // 오늘 첫 진입 → 자동 갱신
+    console.log('오늘 첫 진입 → 자동 시세 갱신');
+    setTimeout(() => {
+      fetchAllPrices().then(() => {
+        localStorage.setItem('lastPriceRefresh', today);
+      });
+    }, 1500);
+  }
+})();
+
+// 시세 갱신 완료 후 날짜 저장 (기존 fetchAllPrices 완료 시점에 기록)
+const _origFetchDone = () => localStorage.setItem('lastPriceRefresh', new Date().toDateString());
+const _fetchObserver = setInterval(() => {
+  const btn = document.getElementById('refresh-btn');
+  if (btn && btn.textContent === '🔄 시세 갱신' && !btn.disabled) {
+    // 버튼 클릭 시 날짜 저장하도록 이벤트 추가
+    btn.addEventListener('click', () => {
+      setTimeout(() => localStorage.setItem('lastPriceRefresh', new Date().toDateString()), 5000);
+    }, { once: true });
+  }
+}, 2000);
+setTimeout(() => clearInterval(_fetchObserver), 10000);
+</script>
+
+
+<script>
+// ══ 배당 탭 ══
+function renderDivTab(){
+  const dvTot=divTotal(), pct=(dvTot/goals.divGoal*100);
+  const map=divByMonth(), months=Object.keys(map).sort();
+  const bestM=months.reduce((b,m)=>(!b||(map[m]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0)>(map[b]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0))?m:b,'');
+  const bestV=bestM?(map[bestM]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0):0;
+
+  document.getElementById('dv-goal').textContent=fmt(goals.divGoal)+'원';
+  document.getElementById('dv-total').textContent=fmt(dvTot)+'원';
+  document.getElementById('dv-pct').textContent=pct.toFixed(1)+'%';
+  document.getElementById('dv-best').textContent=bestM?`${bestM.slice(5)}월 ${fmt(bestV)}원`:'-';
+  if(document.getElementById('div-sub-goal'))
+    document.getElementById('div-sub-goal').textContent=`연 목표 ${fmt(goals.divGoal/10000)}만원`;
+
+  const ALL_M=Array.from({length:12},(_,i)=>`2026-${String(i+1).padStart(2,'0')}`);
+  const LABELS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const mTarget=goals.divGoal/12;
+  const pbsEl=document.getElementById('div-pbs');
+  if(pbsEl) pbsEl.innerHTML=ALL_M.map((m,i)=>{
+    const v=(map[m]||[]).reduce((s,d)=>s+(d.amtKRW||d.a),0), p=Math.min((v/mTarget)*100,100);
+    const col=v>mTarget?'var(--green)':v>mTarget*.5?'var(--gold)':'var(--red)';
+    return `<div class="pb"><div class="pb-head"><span class="pb-label">${LABELS[i]}</span><span class="mono" style="font-size:12px;color:${v>0?col:'var(--muted)'};">${v>0?fmt(v)+'원':'미입력'} <span style="color:var(--muted)">/ ${fmt(Math.round(mTarget))}원</span></span></div><div class="pb-track"><div class="pb-fill" style="width:${p}%;background:${col}"></div></div></div>`;
+  }).join('');
+
+  const divMonthsEl=document.getElementById('div-months');
+  if(divMonthsEl) divMonthsEl.innerHTML=months.map(m=>{
+    const items=map[m]||[], tot=items.reduce((s,d)=>s+(d.amtKRW||d.a),0);
+    return `<div class="div-month-block">
+      <div class="dmb-head"><div class="dmb-month">${m.replace('-','년 ')}월</div><div class="dmb-total">${fmt(tot)}원</div></div>
+      <div class="dmb-entries">${items.map((d,i)=>`<div class="de">
+        <span class="de-t">${d.t}</span>
+        <span class="de-a">${d.currency&&d.currency!=='KRW'
+          ? `${d.currency==='USD'?'$':'¥'}${d.a} → ${fmt(d.amtKRW||d.a)}원`
+          : fmt(d.amtKRW||d.a)+'원'}</span>
+        <button class="btn-danger" style="font-size:11px" onclick="delDiv('${m}',${i})">✕</button>
+      </div>`).join('')}</div>
+    </div>`;
+  }).join('')||'<div style="color:var(--muted);font-size:13px;padding:16px 0">배당 내역을 입력해주세요</div>';
+}
+
+function openDivModal(){ document.getElementById('ov-div').classList.add('on'); }
+
+function toggleDivFx(currency){
+  const fx=document.getElementById('dv-fx-block');
+  const memo=document.getElementById('dv-memo-block');
+  if(!fx||!memo) return;
+  if(currency==='USD'||currency==='JPY'){
+    fx.style.display='block'; memo.style.display='none';
+    document.getElementById('dv-rate').placeholder=currency==='USD'?'USD: 1380':'JPY: 9.2';
+  } else {
+    fx.style.display='none'; memo.style.display='block';
+  }
+}
+
+function addDiv(){
+  const m=document.getElementById('dv-month').value;
+  const t=document.getElementById('dv-ticker').value.trim();
+  const a=parseFloat(document.getElementById('dv-amt').value)||0;
+  const currency=document.getElementById('dv-currency').value;
+  const rate=parseFloat(document.getElementById('dv-rate').value)||0;
+  const memo=currency!=='KRW'
+    ?document.getElementById('dv-memo').value.trim()
+    :document.getElementById('dv-memo2').value.trim();
+  if(!m||!t||!a) return alert('월, 종목, 금액 필수');
+  let amtKRW=a;
+  if(currency!=='KRW'&&rate>0) amtKRW=Math.round(a*rate);
+  else if(currency!=='KRW') amtKRW=Math.round(a*(currency==='USD'?1380:9.2));
+  divs.push({m,t,a,currency,rate:rate||null,amtKRW,memo});
+  save(); cm('ov-div'); renderDivTab();
+  document.getElementById('dv-ticker').value='';
+  document.getElementById('dv-amt').value='';
+  document.getElementById('dv-rate').value='';
+  document.getElementById('dv-currency').value='KRW';
+  toggleDivFx('KRW');
+}
+
+function delDiv(month,i){
+  const mDivs=divs.filter(d=>d.m===month);
+  const target=mDivs[i];
+  const gi=divs.indexOf(target);
+  if(gi>-1) divs.splice(gi,1);
+  save(); renderDivTab();
+}
+
+// ══ 가계부 탭 ══
+const MONTHS_KR=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+function chM(d){
+  curM+=d;
+  if(curM>12){curM=1;curY++;}
+  if(curM<1){curM=12;curY--;}
+  renderMonthly();
+}
+
+function setFilter(f){
+  filterMode=f;
+  renderMonthly();
+}
+
+function setTxType(t){
+  txType=t;
+  document.getElementById('tt-inc').className=t==='income'?'btn':'btn-ghost';
+  document.getElementById('tt-inc').style.cssText=t==='income'?'flex:1;background:var(--green)':'flex:1';
+  document.getElementById('tt-exp').className=t==='expense'?'btn':'btn-ghost';
+  document.getElementById('tt-exp').style.cssText=t==='expense'?'flex:1;background:var(--red);color:#fff':'flex:1';
+}
+
+function renderMonthly(){
+  const ms=`${curY}-${String(curM).padStart(2,'0')}`;
+  const mLabel=document.getElementById('m-label');
+  if(mLabel) mLabel.textContent=`${curY}년 ${MONTHS_KR[curM-1]}`;
+
+  const mt=txs.filter(t=>t.date.startsWith(ms));
+  const inc=mt.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0);
+  const exp=mt.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0);
+
+  const mIncEl=document.getElementById('m-inc');
+  const mExpEl=document.getElementById('m-exp');
+  if(mIncEl) mIncEl.textContent=fmt(inc)+'원';
+  if(mExpEl) mExpEl.textContent=fmt(exp)+'원';
+
+  // 카테고리별 합계
+  window._catStatsMode=window._catStatsMode||'expense';
+  renderCatStats(mt, window._catStatsMode);
+
+  // 결제수단별 통계
+  const payAmt={};
+  mt.filter(t=>t.type==='expense').forEach(t=>{ payAmt[t.from]=(payAmt[t.from]||0)+t.amt; });
+  const payEntries=Object.entries(payAmt).sort((a,b)=>b[1]-a[1]);
+  const statsCard=document.getElementById('payment-stats-card');
+  if(statsCard){
+    if(payEntries.length>0){
+      statsCard.style.display='block';
+      const maxPay=payEntries[0][1];
+      document.getElementById('payment-stats').innerHTML=payEntries.map(([pay,amt])=>{
+        const pct=Math.round((amt/maxPay)*100);
+        return `<div class="pb"><div class="pb-h"><span class="pb-label">${pay}</span><span class="mono" style="font-size:12px">${fmt(amt)}원</span></div><div class="pb-track"><div class="pb-fill" style="width:${pct}%;background:var(--blue)"></div></div></div>`;
+      }).join('');
+    } else { statsCard.style.display='none'; }
+  }
+
+  // 예산 현황
+  const catAmt={};
+  mt.filter(t=>t.type==='expense').forEach(t=>{ catAmt[t.cat]=(catAmt[t.cat]||0)+t.amt; });
+  const budgetPBsEl=document.getElementById('budget-pbs');
+  if(budgetPBsEl) budgetPBsEl.innerHTML=Object.keys(budget).length===0
+    ? '<div style="color:var(--muted);font-size:13px;padding:8px 0">예산 설정 버튼을 눌러 카테고리별 예산을 입력하세요</div>'
+    : Object.entries(budget).map(([cat,bgt])=>{
+        const act=catAmt[cat]||0, p=Math.min((act/bgt)*100,100);
+        const col=act>bgt?'var(--red)':p>75?'var(--gold)':'var(--green)';
+        return `<div class="pb"><div class="pb-head"><span class="pb-label">${cat}</span><span class="mono" style="font-size:12px;color:${col}">${fmt(act)} <span style="color:var(--muted)">/ ${fmt(bgt)}</span></span></div><div class="pb-track"><div class="pb-fill" style="width:${p}%;background:${col}"></div></div></div>`;
+      }).join('');
+
+  // 거래 내역
+  let list=[...mt].sort((a,b)=>a.date.localeCompare(b.date));
+  if(filterMode!=='all') list=list.filter(t=>t.type===filterMode);
+  const txBodyEl=document.getElementById('tx-body');
+  if(txBodyEl) txBodyEl.innerHTML=list.length?list.map(t=>{
+    const catIdx=txSettings.categories.indexOf(t.cat);
+    const c=getCatColor(t.cat, catIdx>=0?catIdx:0);
+    const gi=txs.indexOf(t);
+    return `<tr style="cursor:pointer" onclick="openEditTx(${gi})" title="클릭해서 수정">
+      <td style="color:var(--muted);white-space:nowrap;font-size:13px">${t.date.slice(5).replace('-','/')}</td>
+      <td><span class="cat-badge" style="background:${c}18;color:${c}">${t.cat}</span></td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</td>
+      <td class="r ${t.type==='income'?'color-green':'color-red'}" style="font-weight:600">${t.type==='income'?'+':'-'}${fmt(t.amt)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn-danger" onclick="delTx(${gi})">✕</button></td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--muted)">거래 내역 없음</td></tr>';
+}
+
+function openTxModal(){
+  const today=new Date();
+  document.getElementById('tx-date').value=`${curY}-${String(curM).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  document.getElementById('tx-amt').value='';
+  document.getElementById('tx-desc').value='';
+  fillTxSelects();
+  document.getElementById('ov-tx').classList.add('on');
+}
+
+function addTx(){
+  const date=document.getElementById('tx-date').value;
+  const amt=parseInt(document.getElementById('tx-amt').value)||0;
+  const cat=document.getElementById('tx-cat').value;
+  const from=document.getElementById('tx-from').value;
+  const desc=document.getElementById('tx-desc').value.trim();
+  if(!date||!amt||!desc) return alert('날짜, 금액, 내용 필수');
+  txs.push({date,cat,desc,from,amt,type:txType});
+  save(); cm('ov-tx'); renderMonthly();
+}
+
+function delTx(i){ txs.splice(i,1); save(); renderMonthly(); }
+
+function fillTxSelects(){
+  const catSel=document.getElementById('tx-cat');
+  const fromSel=document.getElementById('tx-from');
+  if(catSel) catSel.innerHTML=txSettings.categories.map(c=>`<option>${c}</option>`).join('');
+  if(fromSel) fromSel.innerHTML=txSettings.payments.map(p=>`<option>${p}</option>`).join('');
+}
 </script>
 
 </body>
