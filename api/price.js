@@ -1,12 +1,7 @@
-// 한국투자증권 오픈API 시세 조회
 const KIS_BASE = 'https://openapi.koreainvestment.com:9443';
-let cachedToken = null;
-let tokenExpiry = 0;
 
+// 토큰 발급 (하루 1번만 호출 권장)
 async function getToken(appKey, appSecret) {
-  // 토큰 캐시 (30분)
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
   const res = await fetch(`${KIS_BASE}/oauth2/tokenP`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -18,13 +13,10 @@ async function getToken(appKey, appSecret) {
   });
   const data = await res.json();
   if (!data.access_token) throw new Error('토큰 발급 실패: ' + JSON.stringify(data));
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 25 * 60 * 1000; // 25분
-  return cachedToken;
+  return data.access_token;
 }
 
 async function getKRPrice(ticker, token, appKey, appSecret) {
-  // 국내주식/ETF 현재가
   const res = await fetch(
     `${KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-price?fid_cond_mrkt_div_code=J&fid_input_iscd=${ticker}`,
     {
@@ -43,24 +35,10 @@ async function getKRPrice(ticker, token, appKey, appSecret) {
 }
 
 async function getUSPrice(ticker, token, appKey, appSecret) {
-  // 해외주식 현재가 (미국)
-  const res = await fetch(
-    `${KIS_BASE}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=NAS&SYMB=${ticker}`,
-    {
-      headers: {
-        'authorization': `Bearer ${token}`,
-        'appkey': appKey,
-        'appsecret': appSecret,
-        'tr_id': 'HHDFS00000300',
-        'custtype': 'P',
-      },
-    }
-  );
-  const data = await res.json();
-  // NYSE도 시도
-  if (!data?.output?.last) {
-    const res2 = await fetch(
-      `${KIS_BASE}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=NYSE&SYMB=${ticker}`,
+  // NASDAQ 시도 후 NYSE
+  for (const excd of ['NAS', 'NYSE', 'AMS']) {
+    const res = await fetch(
+      `${KIS_BASE}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=${excd}&SYMB=${ticker}`,
       {
         headers: {
           'authorization': `Bearer ${token}`,
@@ -71,16 +49,14 @@ async function getUSPrice(ticker, token, appKey, appSecret) {
         },
       }
     );
-    const data2 = await res2.json();
-    const price2 = data2?.output?.last;
-    return price2 ? parseFloat(price2) : null;
+    const data = await res.json();
+    const price = data?.output?.last;
+    if (price && parseFloat(price) > 0) return parseFloat(price);
   }
-  const price = data?.output?.last;
-  return price ? parseFloat(price) : null;
+  return null;
 }
 
 async function getJPPrice(ticker, token, appKey, appSecret) {
-  // 일본주식
   const res = await fetch(
     `${KIS_BASE}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=TSE&SYMB=${ticker}`,
     {
@@ -101,15 +77,25 @@ async function getJPPrice(ticker, token, appKey, appSecret) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const appKey = process.env.KIS_APP_KEY;
+  const appKey    = process.env.KIS_APP_KEY;
   const appSecret = process.env.KIS_APP_SECRET;
+  // 토큰을 환경변수로 저장해두면 재발급 안 함
+  let token       = process.env.KIS_TOKEN;
+
   if (!appKey || !appSecret) {
     return res.status(500).json({ error: 'KIS_APP_KEY or KIS_APP_SECRET not set' });
   }
 
   try {
+    // 토큰이 없으면 발급
+    if (!token) {
+      console.log('토큰 발급 중...');
+      token = await getToken(appKey, appSecret);
+      // ⚠️ 토큰 발급 후 Vercel 환경변수 KIS_TOKEN에 직접 저장 필요
+      console.log('발급된 토큰 (Vercel KIS_TOKEN에 저장하세요):', token.slice(0, 20) + '...');
+    }
+
     const { items } = req.body;
-    const token = await getToken(appKey, appSecret);
     const results = [];
 
     for (const item of items) {
@@ -122,22 +108,28 @@ export default async function handler(req, res) {
         } else if (item.currency === 'JPY') {
           price = await getJPPrice(item.ticker, token, appKey, appSecret);
         }
+
         if (price !== null) {
           results.push({ ticker: item.ticker, price, currency: item.currency, name: item.name });
-          console.log(`✅ ${item.ticker} (${item.name}): ${price}`);
+          console.log(`✅ ${item.name}(${item.ticker}): ${price}`);
         } else {
-          console.log(`❌ ${item.ticker} (${item.name}): 조회 실패`);
+          console.log(`❌ ${item.name}(${item.ticker}): 조회 실패`);
         }
       } catch(e) {
         console.log(`Error ${item.ticker}:`, e.message);
       }
-      // API 호출 간격 (과부하 방지)
       await new Promise(r => setTimeout(r, 200));
     }
 
     res.status(200).json({ prices: results });
   } catch(e) {
-    console.error('Handler error:', e.message);
-    res.status(500).json({ error: e.message });
+    // 토큰 만료 시 안내
+    if (e.message.includes('토큰') || e.message.includes('token')) {
+      return res.status(200).json({
+        error: '토큰 만료. Vercel KIS_TOKEN 환경변수를 갱신해주세요.',
+        prices: []
+      });
+    }
+    res.status(500).json({ error: e.message, prices: [] });
   }
 }

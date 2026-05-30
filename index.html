@@ -2065,5 +2065,56 @@ ${question}
 }
 </script>
 
+
+<script>
+// ── 목표 수정 ──
+function openGoalModal(){
+  document.getElementById('g-div').value = goals.divGoal;
+  document.getElementById('g-asset').value = goals.assetGoal;
+  document.getElementById('g-year').value = goals.targetYear;
+  document.getElementById('g-memo').value = goals.memo;
+  document.getElementById('ov-goal').classList.add('on');
+}
+function saveGoals(){
+  goals = {
+    divGoal: parseInt(document.getElementById('g-div').value) || goals.divGoal,
+    assetGoal: parseInt(document.getElementById('g-asset').value) || goals.assetGoal,
+    targetYear: parseInt(document.getElementById('g-year').value) || goals.targetYear,
+    memo: document.getElementById('g-memo').value.trim() || goals.memo
+  };
+  save(); cm('ov-goal'); renderDash();
+}
+
+// ── 자산 추이 입력 ──
+function openHistModal(){
+  renderHistList();
+  document.getElementById('ov-hist').classList.add('on');
+}
+function renderHistList(){
+  document.getElementById('hist-list').innerHTML = [...history].reverse().map((h,ri)=>{
+    const gi = history.length-1-ri;
+    const prev = history[gi-1];
+    const diff = prev ? h.v-prev.v : null;
+    return `<div class="hist-row">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--muted);width:60px">${h.m}</span>
+      <span style="font-family:var(--mono);font-weight:600">${fmt(h.v)}만</span>
+      ${diff!==null?`<span style="font-family:var(--mono);font-size:12px;color:${diff>=0?'var(--green)':'var(--red)'}">${diff>=0?'+':''}${fmt(diff)}만</span>`:''}
+      <button class="btn-danger" style="margin-left:auto" onclick="delHist(${gi})">✕</button>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:13px;padding:8px 0">기록 없음</div>';
+}
+function addHist(){
+  const m = document.getElementById('h-month').value;
+  const v = parseFloat(document.getElementById('h-val').value)||0;
+  if(!m||!v) return alert('연월과 자산 금액을 입력하세요');
+  const idx = history.findIndex(h=>h.m===m);
+  if(idx>-1) history[idx].v=v; else history.push({m,v});
+  history.sort((a,b)=>a.m.localeCompare(b.m));
+  save(); renderHistList();
+  document.getElementById('h-val').value='';
+}
+function delHist(i){ history.splice(i,1); save(); renderHistList(); }
+</script>
+
 </body>
 </html>
