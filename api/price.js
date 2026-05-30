@@ -88,11 +88,12 @@ export default async function handler(req, res) {
 
   try {
     // 토큰이 없으면 발급
+    let newTokenIssued = false;
     if (!token) {
       console.log('토큰 발급 중...');
       token = await getToken(appKey, appSecret);
-      // ⚠️ 토큰 발급 후 Vercel 환경변수 KIS_TOKEN에 직접 저장 필요
-      console.log('발급된 토큰 (Vercel KIS_TOKEN에 저장하세요):', token.slice(0, 20) + '...');
+      newTokenIssued = true;
+      console.log('토큰 발급 완료 (전체길이):', token.length);
     }
 
     const { items } = req.body;
@@ -121,7 +122,11 @@ export default async function handler(req, res) {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    res.status(200).json({ prices: results });
+    res.status(200).json({
+      prices: results,
+      // 새로 발급된 경우 토큰 반환 (Vercel KIS_TOKEN에 저장 필요)
+      newToken: newTokenIssued ? token : undefined,
+    });
   } catch(e) {
     // 토큰 만료 시 안내
     if (e.message.includes('토큰') || e.message.includes('token')) {
