@@ -1136,7 +1136,148 @@ function saveAsset() {
 function delAsset(grp,i){ if(!confirm('삭제할까요?'))return; assets[grp].splice(i,1); save(); renderAssets(); renderDash(); }
 
 // ── 시세 갱신 ──
-let fetchLoading=false;
+let fetchLoading = false;
+async function fetchAllPrices(){
+  if(fetchLoading) return;
+  const tickerItems = [...assets.mid,...assets.lng].filter(a=>a.ticker && a.ticker.length>0);
+  if(!tickerItems.length){
+    alert('티커가 등록된 종목이 없습니다.\n각 항목 편집에서 티커를 입력해주세요.');
+    return;
+  }
+  fetchLoading = true;
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '⏳ 조회중...'; btn.disabled = true;
+  const ps = document.getElementById('price-status');
+  ps.style.display = 'block';
+  document.getElementById('pdot').className = 'price-dot loading';
+  document.getElementById('price-status-txt').textContent = `${tickerItems.length}개 종목 시세 조회 중...`;
+  document.getElementById('price-result-list').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: tickerItems.map(a=>({
+          ticker: a.ticker,
+          exchange: a.exchange || 'KRX',
+          currency: a.currency || 'KRW',
+          name: a.name
+        }))
+      })
+    });
+
+    const data = await res.json();
+    const prices = data.prices || [];
+
+    if(prices.length === 0) {
+      document.getElementById('pdot').className = 'price-dot err';
+      document.getElementById('price-status-txt').textContent = '조회 실패 · 편집에서 현재가 직접 입력 가능';
+      return;
+    }
+
+    // 가격 업데이트
+    prices.forEach(p => {
+      [...assets.mid,...assets.lng]
+        .filter(a => a.ticker === p.ticker)
+        .forEach(a => a.cur = p.price);
+    });
+    save(); renderAssets(); renderDash();
+
+    const now = new Date();
+    document.getElementById('pdot').className = 'price-dot done';
+    document.getElementById('price-status-txt').textContent =
+      `${prices.length}/${tickerItems.length}개 업데이트 · ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+
+    // 결과 표시
+    document.getElementById('price-result-list').innerHTML = prices.map(p => {
+      const item = tickerItems.find(a=>a.ticker===p.ticker);
+      const avgKRW = item ? (item.currency==='USD'?item.avg*USD_KRW:item.avg) : 0;
+      const curKRW = p.currency==='USD' ? p.price*USD_KRW : p.price;
+      const pct = avgKRW>0 ? ((curKRW-avgKRW)/avgKRW*100) : null;
+      return `<div class="de" style="background:var(--blue-light);border-color:rgba(76,110,245,.2)">
+        <span class="de-t" style="color:var(--blue)">${p.ticker}</span>
+        <span class="de-a">${p.currency==='USD'?'$'+p.price.toFixed(2):p.price.toLocaleString()+'원'}</span>
+        ${pct!==null?`<span style="font-size:11px;font-family:var(--mono);color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>`:''}
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    document.getElementById('pdot').className = 'price-dot err';
+    document.getElementById('price-status-txt').textContent = '오류: ' + e.message;
+  } finally {
+    fetchLoading = false;
+    btn.textContent = '🔄 시세 갱신'; btn.disabled = false;
+  }
+}
+
+
+function openAddModal() {
+  document.getElementById('asset-modal-title').textContent='자산 항목 추가';
+  ['a-name','a-ticker','a-sub','a-avg','a-qty','a-cur','a-buy-rate','a-cur-rate'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('a-edit-idx').value='';
+  document.getElementById('a-edit-grp').value='';
+  toggleFxRate('KRW');
+  fillDatalist();
+  document.getElementById('ov-asset').classList.add('on');
+}
+
+function openEditModal(grp,i) {
+  const a=assets[grp][i];
+  document.getElementById('asset-modal-title').textContent='자산 항목 편집';
+  document.getElementById('a-group').value=grp;
+  document.getElementById('a-sub').value=a.sub||'';
+  document.getElementById('a-name').value=a.name||'';
+  document.getElementById('a-ticker').value=a.ticker||'';
+  document.getElementById('a-exchange').value=a.exchange||'';
+  document.getElementById('a-currency').value=a.currency||'KRW';
+  document.getElementById('a-avg').value=a.avg||'';
+  document.getElementById('a-qty').value=a.qty||'';
+  document.getElementById('a-cur').value=a.cur!==null?a.cur:'';
+  document.getElementById('a-buy-rate').value=a.buyRate||'';
+  document.getElementById('a-cur-rate').value=a.curRate||'';
+  toggleFxRate(a.currency||'KRW');
+  document.getElementById('a-edit-idx').value=i;
+  document.getElementById('a-edit-grp').value=grp;
+  fillDatalist();
+  document.getElementById('ov-asset').classList.add('on');
+}
+
+function saveAsset() {
+  const grp=document.getElementById('a-group').value;
+  const currency = document.getElementById('a-currency').value;
+  const obj={
+    sub:document.getElementById('a-sub').value.trim()||'기타',
+    name:document.getElementById('a-name').value.trim(),
+    ticker:document.getElementById('a-ticker').value.trim().toUpperCase(),
+    exchange:document.getElementById('a-exchange').value,
+    currency,
+    avg:parseFloat(document.getElementById('a-avg').value)||0,
+    qty:parseFloat(document.getElementById('a-qty').value)||0,
+    cur:document.getElementById('a-cur').value!=='' ? parseFloat(document.getElementById('a-cur').value) : null,
+    buyRate: (currency!=='KRW' && document.getElementById('a-buy-rate').value!=='') ? parseFloat(document.getElementById('a-buy-rate').value) : null,
+    curRate: (currency!=='KRW' && document.getElementById('a-cur-rate').value!=='') ? parseFloat(document.getElementById('a-cur-rate').value) : null,
+  };
+  if(!obj.name) return alert('종목/계좌명을 입력하세요');
+  const editIdx=document.getElementById('a-edit-idx').value;
+  const editGrp=document.getElementById('a-edit-grp').value;
+  if(editIdx!=='' && editGrp) {
+    assets[editGrp][parseInt(editIdx)]=obj;
+  } else {
+    assets[grp].push(obj);
+  }
+  save();
+  // 저장 확인
+  const check = loadLS('a5', {});
+  const cnt = (check.mid||[]).length + (check.lng||[]).length + (check.cash||[]).length;
+  cm('ov-asset');
+  renderAssets();
+  renderDash();
+}
+
+function delAsset(grp,i){ if(!confirm('삭제할까요?'))return; assets[grp].splice(i,1); save(); renderAssets(); renderDash(); }
+
+// ── 시세 갱신 ──
 async function fetchAllPrices(){
   if(fetchLoading)return;
   const tickerItems=[...assets.mid,...assets.lng].filter(a=>a.ticker&&a.ticker.length>0);
@@ -1157,17 +1298,16 @@ async function fetchAllPrices(){
 [{"ticker":"SCHD","price":26.5,"currency":"USD"},{"ticker":"005930","price":72000,"currency":"KRW"}]`;
 
   try {
-    const res=await fetch('/api/price',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})});
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     const text=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-    console.log('api 응답:', text.slice(0,500));
+    console.log('Gemini 응답:', text.slice(0,500));
 
     // JSON 추출 — 여러 패턴 시도
     let prices = [];
     const patterns = [/```json([\s\S]*?)```/, /```([\s\S]*?)```/, /\[[\s\S]*?\]/];
     for(const pat of patterns) {
       const m = text.match(pat);
-      console.log('m:', m);
       if(m) {
         try {
           const raw = m[1] || m[0];
@@ -1983,7 +2123,7 @@ async function parseAiInput() {
     document.getElementById('ai-parse-btn').style.display = 'none';
 
   } catch(e) {
-    alert('분석 실패: ' + e.message + '직접 입력해주세요.');
+    alert('분석 실패: ' + e.message + '\n직접 입력해주세요.');
   } finally {
     document.getElementById('ai-loading').style.display = 'none';
     document.getElementById('ai-parse-btn').disabled = false;
