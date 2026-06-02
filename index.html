@@ -2477,13 +2477,13 @@ async function askAssetAi() {
     ...assets.cash.map(a=>({...a, group:'현금/단기'})),
   ];
 
+  // 자산내역
   const assetText = allItems.map(a => {
     const cost = a.avg && a.qty ? (a.currency==='USD'?a.avg*a.qty*1380:a.avg*a.qty) : 0;
     const val = a.cur ? (a.currency==='USD'?a.cur*a.qty*1380:a.currency==='KRW'&&a.avg&&a.qty?a.cur*a.qty:a.cur*10000) : cost;
     const gain = cost > 0 ? ((val-cost)/cost*100).toFixed(1) : null;
     return `${a.group} | ${a.sub||''} | ${a.name} | ${a.ticker||''} | 매수${Math.round(cost/10000)}만 | 평가${Math.round(val/10000)}만 | ${gain?gain+'%':'현재가없음'}`;
-  }).join('
-');
+  }).join('');
 
   const totalVal = allItems.reduce((s,a) => {
     const cost = a.avg && a.qty ? (a.currency==='USD'?a.avg*a.qty*1380:a.avg*a.qty) : 0;
