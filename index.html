@@ -2009,9 +2009,10 @@ function openAiStats() {
   const quickQs = [
     '이번달 카테고리별 지출 합계',
     '가장 많이 쓴 카테고리 TOP 3',
-    '결제수단별 총 사용금액',
-    '수입 대비 지출 비율',
-    '주말 vs 평일 지출 비교',
+    '예산 초과한 카테고리 알려줘',
+    '이번달 지출 개선점 분석해줘',
+    '절약 가능한 항목 추천해줘',
+    '수입 대비 지출 비율과 평가',
   ];
   document.getElementById('quick-questions').innerHTML = quickQs.map(q=>
     `<button class="btn-sm" onclick="document.getElementById('ai-stats-input').value='${q}';askAiStats()" style="font-size:11px;padding:4px 10px">${q}</button>`
@@ -2040,6 +2041,9 @@ async function askAiStats() {
   const totalInc = mt.filter(t=>t.type==='income').reduce((s,t)=>s+t.amt,0);
   const totalExp = mt.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amt,0);
 
+  // 예산 정보 추가
+  const budgetText = Object.entries(budget).map(([cat,amt])=>`${cat}: ${amt.toLocaleString()}원`).join(', ');
+
   const prompt = `다음은 ${curY}년 ${curM}월 가계부 데이터입니다.
 
 === 거래 내역 (날짜|유형|카테고리|내용|결제수단|금액) ===
@@ -2049,11 +2053,16 @@ ${dataText || '(거래 내역 없음)'}
 총 수입: ${totalInc.toLocaleString()}원
 총 지출: ${totalExp.toLocaleString()}원
 거래 건수: ${mt.length}건
+예산 설정: ${budgetText || '없음'}
 
 === 질문 ===
 ${question}
 
-위 데이터를 분석해서 질문에 답해주세요. 숫자는 원 단위로 명확하게, 간결하게 답변해주세요.`;
+위 데이터를 분석해서 질문에 답해주세요.
+- 통계/합계 질문: 숫자를 명확하게 계산해서 답변
+- 개선점/문제점 질문: 지출 패턴을 분석해서 구체적인 조언 제공 (예산 초과 항목, 절약 가능 영역 등)
+- 비교 질문: 카테고리별 비중, 예산 대비 실지출 비교 등 포함
+한국어로 친절하게 답변해주세요.`;
 
   try {
     const res = await fetch('/api/chat', {
@@ -2136,6 +2145,19 @@ function delHist(i){ history.splice(i,1); save(); renderHistList(); }
 
 <script>
 // ── 앱 진입 시 자동 시세 갱신 (오늘 아직 안 했으면) ──
+// 초기 자산 KPI 렌더링 (탭 이동 전에도 값 보이게)
+(function initAssetKPI() {
+  const {mid, lng, cash} = (() => {
+    const s = arr => arr.reduce((a,x)=>({inv:a.inv+(x.inv||0), cur:a.cur+(x.cur||0)}), {inv:0,cur:0});
+    return { mid: s(assets.mid), lng: s(assets.long||assets.lng||[]), cash: {inv:0, cur: assets.cash.reduce((a,x)=>a+(x.cur||0),0)} };
+  })();
+  const midEl=document.getElementById('a-mid'), lngEl=document.getElementById('a-lng'), cashEl=document.getElementById('a-cash');
+  const midSEl=document.getElementById('a-mid-s'), lngSEl=document.getElementById('a-lng-s');
+  if(midEl) midEl.textContent = Math.round(mid.cur/10000).toLocaleString()+'만';
+  if(lngEl) lngEl.textContent = Math.round(lng.cur/10000).toLocaleString()+'만';
+  if(cashEl) cashEl.textContent = Math.round(cash.cur/10000).toLocaleString()+'만';
+})();
+
 (function autoRefreshOnLoad() {
   const today = new Date().toDateString();
   const lastRefresh = localStorage.getItem('lastPriceRefresh');
@@ -2398,6 +2420,117 @@ function oclose(id, e){
 }
 // ocl = oclose 별칭
 function ocl(id, e){ oclose(id, e); }
+</script>
+
+
+<!-- 자산 AI 분석 모달 -->
+<div class="ov" id="ov-asset-ai" onclick="oclose('ov-asset-ai',event)">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">🤖 자산 AI 분석</div>
+    <div class="modal-hint">
+      보유 자산 기준으로 무엇이든 물어보세요.<br>
+      예: "현재 자산 배분에서 문제점은?"<br>
+      예: "수익률이 낮은 종목은?"<br>
+      예: "포트폴리오 개선 제안해줘"
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="asset-ai-input" placeholder="질문을 입력하세요..."
+        style="flex:1" onkeydown="if(event.key==='Enter')askAssetAi()">
+      <button class="btn" onclick="askAssetAi()" style="padding:9px 16px;white-space:nowrap">분석</button>
+    </div>
+    <!-- 빠른 질문 -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+      <button class="btn-sm" onclick="document.getElementById('asset-ai-input').value='현재 자산 배분 비율과 문제점';askAssetAi()" style="font-size:11px;padding:4px 10px">자산 배분 분석</button>
+      <button class="btn-sm" onclick="document.getElementById('asset-ai-input').value='수익률 낮거나 손실 중인 종목';askAssetAi()" style="font-size:11px;padding:4px 10px">손실 종목</button>
+      <button class="btn-sm" onclick="document.getElementById('asset-ai-input').value='포트폴리오 리밸런싱 제안';askAssetAi()" style="font-size:11px;padding:4px 10px">리밸런싱 제안</button>
+      <button class="btn-sm" onclick="document.getElementById('asset-ai-input').value='총 자산 대비 현금 비중 평가';askAssetAi()" style="font-size:11px;padding:4px 10px">현금 비중</button>
+      <button class="btn-sm" onclick="document.getElementById('asset-ai-input').value='배당 수익률 높은 종목 분석';askAssetAi()" style="font-size:11px;padding:4px 10px">배당 분석</button>
+    </div>
+    <div id="asset-ai-loading" style="display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px">🤖 분석 중...</div>
+    <div id="asset-ai-result" style="display:none;background:var(--s2);border-radius:10px;padding:16px;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto"></div>
+    <div style="margin-top:14px">
+      <button class="btn-ghost" onclick="cm('ov-asset-ai')" style="width:100%">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAssetAi() {
+  document.getElementById('asset-ai-input').value = '';
+  document.getElementById('asset-ai-result').style.display = 'none';
+  document.getElementById('asset-ai-loading').style.display = 'none';
+  document.getElementById('ov-asset-ai').classList.add('on');
+  setTimeout(() => document.getElementById('asset-ai-input').focus(), 100);
+}
+
+async function askAssetAi() {
+  const question = document.getElementById('asset-ai-input').value.trim();
+  if(!question) return alert('질문을 입력하세요');
+
+  document.getElementById('asset-ai-loading').style.display = 'block';
+  document.getElementById('asset-ai-result').style.display = 'none';
+
+  // 자산 데이터 텍스트 변환
+  const allItems = [
+    ...assets.mid.map(a=>({...a, group:'중기투자'})),
+    ...assets.lng.map(a=>({...a, group:'장기투자'})),
+    ...assets.cash.map(a=>({...a, group:'현금/단기'})),
+  ];
+
+  const assetText = allItems.map(a => {
+    const cost = a.avg && a.qty ? (a.currency==='USD'?a.avg*a.qty*1380:a.avg*a.qty) : 0;
+    const val = a.cur ? (a.currency==='USD'?a.cur*a.qty*1380:a.currency==='KRW'&&a.avg&&a.qty?a.cur*a.qty:a.cur*10000) : cost;
+    const gain = cost > 0 ? ((val-cost)/cost*100).toFixed(1) : null;
+    return `${a.group} | ${a.sub||''} | ${a.name} | ${a.ticker||''} | 매수${Math.round(cost/10000)}만 | 평가${Math.round(val/10000)}만 | ${gain?gain+'%':'현재가없음'}`;
+  }).join('
+');
+
+  const totalVal = allItems.reduce((s,a) => {
+    const cost = a.avg && a.qty ? (a.currency==='USD'?a.avg*a.qty*1380:a.avg*a.qty) : 0;
+    const val = a.cur ? (a.currency==='USD'?a.cur*a.qty*1380:a.currency==='KRW'&&a.avg&&a.qty?a.cur*a.qty:a.cur*10000) : cost;
+    return s + val;
+  }, 0);
+
+  const divTot = divTotal();
+
+  const prompt = `다음은 사용자의 자산 현황 데이터입니다.
+
+=== 자산 목록 (분류|소분류|종목명|티커|매수금액|평가금액|수익률) ===
+${assetText}
+
+=== 요약 ===
+총 자산: ${Math.round(totalVal/10000).toLocaleString()}만원
+중기투자: ${Math.round(groupTotalKRW('mid')/10000).toLocaleString()}만원
+장기투자: ${Math.round(groupTotalKRW('lng')/10000).toLocaleString()}만원
+현금/단기: ${Math.round(groupTotalKRW('cash')/10000).toLocaleString()}만원
+연간 배당 수령: ${divTot.toLocaleString()}원
+연간 배당 목표: ${goals.divGoal.toLocaleString()}원
+
+=== 질문 ===
+${question}
+
+위 자산 데이터를 분석해서 질문에 답해주세요.
+- 통계/수치 질문: 구체적 숫자와 비율 포함
+- 문제점/개선점: 분산 투자, 리스크, 수익률 관점에서 구체적 조언
+- 전문적이되 이해하기 쉽게, 한국어로 답변해주세요.`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 1000 })
+    });
+    const data = await res.json();
+    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    document.getElementById('asset-ai-result').style.display = 'block';
+    document.getElementById('asset-ai-result').textContent = text || '분석 결과가 없습니다.';
+  } catch(e) {
+    document.getElementById('asset-ai-result').style.display = 'block';
+    document.getElementById('asset-ai-result').textContent = '분석 실패: ' + e.message;
+  } finally {
+    document.getElementById('asset-ai-loading').style.display = 'none';
+  }
+}
 </script>
 
 </body>
