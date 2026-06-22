@@ -140,7 +140,7 @@ canvas { width: 100% !important; display: block; }
 .bc-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 .bc-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 3px; transition: height .6s cubic-bezier(.4,0,.2,1); }
 .bc-lbl { font-size: 10px; color: var(--muted); }
-.bc-val { font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: visible; width: 100%; text-align: center; }
+.bc-val { font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
 
 /* ── DONUT LEGEND ── */
 .dl-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
@@ -900,7 +900,7 @@ function renderDash() {
   document.getElementById('div-bar').innerHTML = ALL_M.map((m,i)=>{
     const v=vals[i], ht=Math.round((v/maxV)*95);
     return `<div class="bc-col">
-      <div class="bc-val" style="color:${v>0?'var(--gold)':'var(--muted)'}">${v>0?(v>=10000000?Math.round(v/1000000)+'백만':Math.round(v/10000)+'만'):''}</div>
+      <div class="bc-val" style="color:${v>0?'var(--gold)':'var(--muted)'}">${v>0?Math.round(v/10000)+'만':''}</div>
       <div class="bc-bar" style="height:${ht||3}px;background:${v>0?'var(--gold)':'var(--s3)'}"></div>
       <div class="bc-lbl">${LABELS[i]}월</div>
     </div>`;
@@ -957,28 +957,37 @@ function drawLine() {
 }
 
 // donut
-function drawDonut(mid,lng,cash) {
-  const canvas=document.getElementById('donut-canvas');
-  const ctx=canvas.getContext('2d');
-  const total=mid+lng+cash||1;
-  const data=[{v:mid,color:'#9b8fcc',label:'중기투자'},{v:lng,color:'#7b9fd4',label:'장기투자'},{v:cash,color:'#6bab8a',label:'현금/단기'}];
-  ctx.clearRect(0,0,120,120);
-  let angle=-Math.PI/2;
-  data.forEach(d=>{
-    const s=(d.v/total)*Math.PI*2;
-    ctx.beginPath();ctx.moveTo(60,60);ctx.arc(60,60,52,angle,angle+s);ctx.closePath();
-    ctx.fillStyle=d.color;ctx.fill();angle+=s;
-  });
-  ctx.beginPath();ctx.arc(60,60,34,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
-  document.getElementById('donut-legend').innerHTML=data.map(d=>`
-    <div class="dl-row">
-      <div class="dl-dot" style="background:${d.color}"></div>
-      <div class="dl-name">${d.label}</div>
-      <div class="dl-val">${fmt(d.v)}만 (${((d.v/total)*100).toFixed(0)}%)</div>
-    </div>`).join('');
+function drawDonut(mid, lng, cash) {
+  const total = (mid + lng + cash) || 1;
+  const data = [
+    { label: '중기투자', val: mid,  color: 'var(--purple)' },
+    { label: '장기투자', val: lng,  color: 'var(--blue)'   },
+    { label: '현금/단기',val: cash, color: 'var(--green)'  },
+  ];
+  const el = document.getElementById('asset-bar-chart');
+  if (!el) return;
+  el.innerHTML = data.map(d => {
+    const pct  = ((d.val / total) * 100).toFixed(1);
+    const barW = Math.max(Math.round((d.val / total) * 100), d.val > 0 ? 2 : 0);
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="width:9px;height:9px;border-radius:3px;background:${d.color};display:inline-block"></span>
+          <span style="font-weight:500">${d.label}</span>
+        </div>
+        <div style="display:flex;gap:12px">
+          <span style="color:var(--muted);font-size:12px">${pct}%</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:600">${Math.round(d.val).toLocaleString()}만원</span>
+        </div>
+      </div>
+      <div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden">
+        <div style="height:100%;width:${barW}%;background:${d.color};border-radius:5px;transition:width .7s ease"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-// ══ ASSETS ══
+
 function renderAssets() {
   const midKRW=groupTotalKRW('mid'), lngKRW=groupTotalKRW('lng'), cashKRW=groupTotalKRW('cash');
   const midCost=assets.mid.reduce((s,a)=>s+costKRW(a),0);
@@ -1754,7 +1763,9 @@ async function parseAiInput() {
     });
 
     const data = await res.json();
-    const rawText = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    let rawText = '';
+    if (data.choices?.[0]?.message?.content) rawText = data.choices[0].message.content;
+    else if (data.content) rawText = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
 
     // JSON 추출
     const match = rawText.match(/\{[\s\S]*?\}/);
@@ -2072,18 +2083,16 @@ ${question}
       })
     });
     const data = await res.json();
-    // OpenRouter(choices) / Anthropic(content) 둘 다 처리
     let text = '';
-    if(data.content) {
+    if (data.choices?.[0]?.message?.content) {
+      text = data.choices[0].message.content;
+    } else if (data.content) {
       text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-    } else if(data.choices) {
-      text = data.choices[0]?.message?.content || '';
-    } else if(data.error) {
+    } else if (data.error) {
       text = '[오류] ' + (data.error.message || JSON.stringify(data.error));
     }
-
     document.getElementById('ai-stats-result').style.display = 'block';
-    document.getElementById('ai-stats-result').textContent = text || '분석 결과가 없습니다. (응답: ' + JSON.stringify(data).slice(0,100) + ')';
+    document.getElementById('ai-stats-result').textContent = text || '응답 없음 (' + JSON.stringify(data).slice(0,80) + ')';
   } catch(e) {
     document.getElementById('ai-stats-result').style.display = 'block';
     document.getElementById('ai-stats-result').textContent = '분석 실패: ' + e.message;
@@ -2180,12 +2189,6 @@ function delHist(i){ history.splice(i,1); save(); renderHistList(); }
       });
     }, 1500);
   }
-})();
-
-// 가계부 당월 초기화
-(function initMonthly() {
-  const mLabel = document.getElementById('m-label');
-  if(mLabel) mLabel.textContent = `${curY}년 ${['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'][curM-1]}`;
 })();
 
 // 시세 갱신 완료 후 날짜 저장 (기존 fetchAllPrices 완료 시점에 기록)
@@ -2532,12 +2535,9 @@ ${question}
       body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 1000 })
     });
     const data = await res.json();
-    let text = '';
-    if(data.content) text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-    else if(data.choices) text = data.choices[0]?.message?.content || '';
-    else if(data.error) text = '[오류] ' + (data.error.message || JSON.stringify(data.error));
+    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
     document.getElementById('asset-ai-result').style.display = 'block';
-    document.getElementById('asset-ai-result').textContent = text || '분석 결과가 없습니다. (' + JSON.stringify(data).slice(0,80) + ')';
+    document.getElementById('asset-ai-result').textContent = text || '분석 결과가 없습니다.';
   } catch(e) {
     document.getElementById('asset-ai-result').style.display = 'block';
     document.getElementById('asset-ai-result').textContent = '분석 실패: ' + e.message;
