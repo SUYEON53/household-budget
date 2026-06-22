@@ -140,7 +140,7 @@ canvas { width: 100% !important; display: block; }
 .bc-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 .bc-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 3px; transition: height .6s cubic-bezier(.4,0,.2,1); }
 .bc-lbl { font-size: 10px; color: var(--muted); }
-.bc-val { font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+.bc-val { font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: visible; width: 100%; text-align: center; }
 
 /* ── DONUT LEGEND ── */
 .dl-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
@@ -332,10 +332,7 @@ select option { background: #fff; }
   <!-- 자산 배분 -->
   <div class="card">
     <div class="card-title">자산 배분</div>
-    <div class="dl-wrap">
-      <canvas id="donut-canvas" width="120" height="120" style="flex-shrink:0"></canvas>
-      <div class="dl-legend" id="donut-legend"></div>
-    </div>
+    <div id="asset-bar-chart"></div>
   </div>
 </div>
 
@@ -460,7 +457,7 @@ select option { background: #fff; }
     <button onclick="chM(-1)">‹</button>
     <div class="cur" id="m-label">-</div>
     <button onclick="chM(1)">›</button>
-    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:13px">+ 입력</button>
+    <button class="btn" onclick="openTxModal()" style="margin-left:auto;padding:7px 16px;font-size:13px">+</button>
   </div>
 
   <div class="kpi-row">
@@ -903,7 +900,7 @@ function renderDash() {
   document.getElementById('div-bar').innerHTML = ALL_M.map((m,i)=>{
     const v=vals[i], ht=Math.round((v/maxV)*95);
     return `<div class="bc-col">
-      <div class="bc-val" style="color:${v>0?'var(--gold)':'var(--muted)'}">${v>0?Math.round(v/10000)+'만':''}</div>
+      <div class="bc-val" style="color:${v>0?'var(--gold)':'var(--muted)'}">${v>0?(v>=10000000?Math.round(v/1000000)+'백만':Math.round(v/10000)+'만'):''}</div>
       <div class="bc-bar" style="height:${ht||3}px;background:${v>0?'var(--gold)':'var(--s3)'}"></div>
       <div class="bc-lbl">${LABELS[i]}월</div>
     </div>`;
@@ -2075,10 +2072,18 @@ ${question}
       })
     });
     const data = await res.json();
-    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    // OpenRouter(choices) / Anthropic(content) 둘 다 처리
+    let text = '';
+    if(data.content) {
+      text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    } else if(data.choices) {
+      text = data.choices[0]?.message?.content || '';
+    } else if(data.error) {
+      text = '[오류] ' + (data.error.message || JSON.stringify(data.error));
+    }
 
     document.getElementById('ai-stats-result').style.display = 'block';
-    document.getElementById('ai-stats-result').textContent = text || '분석 결과가 없습니다.';
+    document.getElementById('ai-stats-result').textContent = text || '분석 결과가 없습니다. (응답: ' + JSON.stringify(data).slice(0,100) + ')';
   } catch(e) {
     document.getElementById('ai-stats-result').style.display = 'block';
     document.getElementById('ai-stats-result').textContent = '분석 실패: ' + e.message;
@@ -2175,6 +2180,12 @@ function delHist(i){ history.splice(i,1); save(); renderHistList(); }
       });
     }, 1500);
   }
+})();
+
+// 가계부 당월 초기화
+(function initMonthly() {
+  const mLabel = document.getElementById('m-label');
+  if(mLabel) mLabel.textContent = `${curY}년 ${['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'][curM-1]}`;
 })();
 
 // 시세 갱신 완료 후 날짜 저장 (기존 fetchAllPrices 완료 시점에 기록)
@@ -2521,9 +2532,12 @@ ${question}
       body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 1000 })
     });
     const data = await res.json();
-    const text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    let text = '';
+    if(data.content) text = (data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    else if(data.choices) text = data.choices[0]?.message?.content || '';
+    else if(data.error) text = '[오류] ' + (data.error.message || JSON.stringify(data.error));
     document.getElementById('asset-ai-result').style.display = 'block';
-    document.getElementById('asset-ai-result').textContent = text || '분석 결과가 없습니다.';
+    document.getElementById('asset-ai-result').textContent = text || '분석 결과가 없습니다. (' + JSON.stringify(data).slice(0,80) + ')';
   } catch(e) {
     document.getElementById('asset-ai-result').style.display = 'block';
     document.getElementById('asset-ai-result').textContent = '분석 실패: ' + e.message;
