@@ -140,7 +140,7 @@ canvas { width: 100% !important; display: block; }
 .bc-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 .bc-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 3px; transition: height .6s cubic-bezier(.4,0,.2,1); }
 .bc-lbl { font-size: 10px; color: var(--muted); }
-.bc-val { font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+.bc-val { font-size: 8px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
 
 /* ── DONUT LEGEND ── */
 .dl-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
@@ -545,10 +545,11 @@ select option { background: #fff; }
       <div><label>거래소</label>
         <select id="a-exchange">
           <option value="KRX">KRX (국내)</option>
-          <option value="NASDAQ">NASDAQ</option>
-          <option value="NYSE">NYSE</option>
+          <option value="NAS">NASDAQ</option>
+          <option value="NYS">NYSE</option>
+          <option value="AMS">AMEX</option>
           <option value="">기타/해당없음</option>
-        </select>
+          </select>
       </div>
     </div>
     <div class="fr">
