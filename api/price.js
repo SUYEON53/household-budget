@@ -36,7 +36,7 @@ async function getKRPrice(ticker, token, appKey, appSecret) {
 
 async function getUSPrice(ticker, token, appKey, appSecret) {
   // NASDAQ 시도 후 NYSE
-  for (const excd of ['NAS', 'NYSE', 'AMS']) {
+  for (const excd of ['NAS', 'NYS', 'AMS']) {
     const res = await fetch(
       `${KIS_BASE}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=${excd}&SYMB=${ticker}`,
       {
