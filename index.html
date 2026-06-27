@@ -345,6 +345,8 @@ select option { background: #fff; }
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-sm" onclick="fetchAllPrices()" id="refresh-btn">🔄 시세 갱신</button>
       <button class="btn-sm" onclick="openAssetAi()">🤖 AI 분석</button>
+      <button class="btn-sm" onclick="document.getElementById('img-upload').click()">📷 사진 입력</button>
+      <input type="file" id="img-upload" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
       <button class="btn-sm" onclick="document.getElementById('excel-upload').click()">📂 엑셀</button>
       <input type="file" id="excel-upload" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelUpload(event)">
       <button class="btn" onclick="openAddModal()">추가</button>
@@ -2545,6 +2547,209 @@ ${question}
   } finally {
     document.getElementById('asset-ai-loading').style.display = 'none';
   }
+}
+</script>
+
+
+<!-- 사진 인식 결과 모달 -->
+<div class="ov" id="ov-img-upload" onclick="oclose('ov-img-upload',event)">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-title">📷 사진으로 자산 입력</div>
+
+    <!-- 이미지 미리보기 -->
+    <div id="img-preview-wrap" style="display:none;margin-bottom:14px;text-align:center">
+      <img id="img-preview" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border)">
+    </div>
+
+    <!-- 로딩 -->
+    <div id="img-loading" style="display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px">
+      🤖 이미지 분석 중...
+    </div>
+
+    <!-- 인식 결과 테이블 -->
+    <div id="img-result-wrap" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">
+        ✅ 인식 결과 — 수정 후 가져오기
+      </div>
+      <div style="max-height:360px;overflow-y:auto">
+        <table class="tbl" style="font-size:12px">
+          <thead><tr>
+            <th><input type="checkbox" id="img-check-all" onchange="toggleAllImg(this.checked)"></th>
+            <th>분류</th><th>종목명</th><th>티커</th><th>평균단가</th><th>수량</th><th>통화</th>
+          </tr></thead>
+          <tbody id="img-result-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 에러 -->
+    <div id="img-error" style="display:none;color:var(--red);font-size:13px;padding:10px;background:var(--red-light);border-radius:8px;margin-bottom:12px"></div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn-ghost" onclick="cm('ov-img-upload')">닫기</button>
+      <button class="btn" id="img-import-btn" style="display:none" onclick="importImgData()">선택 항목 가져오기</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+let imgParsed = [];
+
+async function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  // 모달 열기 + 미리보기
+  document.getElementById('ov-img-upload').classList.add('on');
+  document.getElementById('img-result-wrap').style.display = 'none';
+  document.getElementById('img-error').style.display = 'none';
+  document.getElementById('img-import-btn').style.display = 'none';
+  document.getElementById('img-loading').style.display = 'block';
+
+  // 이미지 미리보기
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result;
+    document.getElementById('img-preview').src = base64;
+    document.getElementById('img-preview-wrap').style.display = 'block';
+
+    // base64 데이터만 추출 (data:image/jpeg;base64, 제거)
+    const base64Data = base64.split(',')[1];
+    const mimeType = file.type || 'image/jpeg';
+
+    await analyzeImageWithGemini(base64Data, mimeType);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeImageWithGemini(base64Data, mimeType) {
+  const prompt = `이 이미지는 주식/ETF/자산 현황 화면 또는 잔고 캡처입니다.
+이미지에서 자산 정보를 추출해서 아래 JSON 배열 형식으로만 응답하세요 (다른 텍스트 없이):
+
+[
+  {
+    "group": "mid 또는 lng 또는 cash",
+    "sub": "소분류 (예: ISA, 개인연금, 퇴직연금, 현금 등)",
+    "name": "종목명 또는 계좌명",
+    "ticker": "티커코드 (없으면 빈문자열)",
+    "currency": "KRW 또는 USD 또는 JPY",
+    "avg": 평균매수단가(숫자, 없으면 0),
+    "qty": 수량(숫자, 없으면 0),
+    "cur": 현재가(숫자, 없으면 null)
+  }
+]
+
+group 분류 기준:
+- mid: 개별주식, ETF, 배당주 등 중기 투자
+- lng: 연금, IRP, 퇴직연금, 청약 등 장기
+- cash: 예금, 적금, 파킹, CMA, 외화예금 등
+
+이미지에서 읽을 수 없는 값은 0 또는 null로 처리하세요.
+반드시 JSON 배열만 출력하세요.`;
+
+  try {
+    // Gemini Vision API 직접 호출
+    const apiKey = ''; // 서버사이드로 처리
+    const res = await fetch('/api/vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Data, mimeType, prompt })
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const text = data.text || '';
+    console.log('Gemini Vision 응답:', text.slice(0, 300));
+
+    // JSON 추출
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('JSON 파싱 실패: ' + text.slice(0, 100));
+
+    imgParsed = JSON.parse(match[0]);
+    renderImgResult();
+
+  } catch(e) {
+    document.getElementById('img-loading').style.display = 'none';
+    document.getElementById('img-error').style.display = 'block';
+    document.getElementById('img-error').textContent = '분석 실패: ' + e.message;
+  }
+}
+
+function renderImgResult() {
+  document.getElementById('img-loading').style.display = 'none';
+  const grpLabel = { mid: '중기투자', lng: '장기투자', cash: '현금/단기' };
+
+  document.getElementById('img-result-body').innerHTML = imgParsed.map((r, i) => `
+    <tr>
+      <td><input type="checkbox" class="img-item-check" data-idx="${i}" checked></td>
+      <td style="font-size:11px;color:var(--blue)">${grpLabel[r.group] || r.group}</td>
+      <td>
+        <input type="text" value="${r.name}" onchange="imgParsed[${i}].name=this.value"
+          style="width:80px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:5px">
+      </td>
+      <td>
+        <input type="text" value="${r.ticker || ''}" onchange="imgParsed[${i}].ticker=this.value"
+          style="width:60px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:5px">
+      </td>
+      <td>
+        <input type="number" value="${r.avg || 0}" onchange="imgParsed[${i}].avg=parseFloat(this.value)||0"
+          style="width:80px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:5px">
+      </td>
+      <td>
+        <input type="number" value="${r.qty || 0}" onchange="imgParsed[${i}].qty=parseFloat(this.value)||0"
+          style="width:55px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:5px">
+      </td>
+      <td>
+        <select onchange="imgParsed[${i}].currency=this.value"
+          style="padding:3px 4px;font-size:12px;border:1px solid var(--border);border-radius:5px">
+          <option ${r.currency==='KRW'?'selected':''}>KRW</option>
+          <option ${r.currency==='USD'?'selected':''}>USD</option>
+          <option ${r.currency==='JPY'?'selected':''}>JPY</option>
+        </select>
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('img-result-wrap').style.display = 'block';
+  document.getElementById('img-import-btn').style.display = '';
+}
+
+function toggleAllImg(checked) {
+  document.querySelectorAll('.img-item-check').forEach(cb => cb.checked = checked);
+}
+
+function importImgData() {
+  const checked = [...document.querySelectorAll('.img-item-check')]
+    .filter(cb => cb.checked)
+    .map(cb => parseInt(cb.dataset.idx));
+
+  if (checked.length === 0) return alert('가져올 항목을 선택하세요');
+
+  checked.forEach(i => {
+    const r = imgParsed[i];
+    const grp = ['mid','lng','cash'].includes(r.group) ? r.group : 'mid';
+    assets[grp].push({
+      sub: r.sub || '기타',
+      name: r.name || '항목',
+      ticker: r.ticker || '',
+      exchange: '',
+      currency: r.currency || 'KRW',
+      avg: r.avg || 0,
+      qty: r.qty || 0,
+      cur: r.cur || null,
+      buyRate: null,
+      curRate: null,
+    });
+  });
+
+  save();
+  cm('ov-img-upload');
+  renderAssets();
+  renderDash();
+  alert(`✅ ${checked.length}개 항목이 추가되었습니다!`);
 }
 </script>
 
