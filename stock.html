@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재고관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f7f8fc; --s1: #ffffff; --s2: #f2f4f9; --s3: #eaecf4;
+  --border: #e2e6f0; --blue: #7b9fd4; --blue-light: #eef3fb;
+  --green: #6bab8a; --green-light: #edf7f2; --red: #d47b7b; --red-light: #fdf2f2;
+  --gold: #c9a96e; --gold-light: #fdf8ee; --purple: #9b8fcc;
+  --text: #3a3d52; --text2: #5a5e78; --muted: #9da3bc;
+  --sans: 'Noto Sans KR', sans-serif; --mono: 'DM Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.04); --shadow: 0 2px 8px rgba(0,0,0,.05), 0 6px 24px rgba(0,0,0,.04);
+}
+body { background: var(--bg); font-family: var(--sans); color: var(--text); min-height: 100vh; padding-bottom: 40px; }
+.nav { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: var(--s1);
+  border-bottom: 1px solid var(--border); overflow-x: auto; position: sticky; top: 0; z-index: 100; }
+.nav-home { display: flex; align-items: center; padding: 6px 10px; color: var(--muted); font-size:12px; text-decoration:none; flex-shrink:0; }
+.tab { background: none; border: 1.5px solid var(--border); border-radius: 20px; padding: 7px 16px;
+  font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--sans); color: var(--text2);
+  white-space: nowrap; transition: all .15s; flex-shrink: 0; }
+.tab.on { background: var(--green); color: #fff; border-color: var(--green); font-weight: 700; }
+.page { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+.page.on { display: block; }
+.card { background: var(--s1); border-radius: 16px; padding: 16px; margin-bottom: 14px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+.card-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between; }
+.ph { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ph-title { font-size: 20px; font-weight: 700; }
+.btn { background: var(--blue); color: #fff; border: none; padding: 9px 18px; border-radius: 8px;
+  font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--sans); }
+.btn-sm { background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 12px;
+  font-size: 12px; cursor: pointer; font-family: var(--sans); color: var(--text2); font-weight: 500; }
+.btn-ghost { background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: 9px 18px;
+  font-size: 13px; cursor: pointer; font-family: var(--sans); color: var(--text2); }
+.btn-danger { background: none; border: none; color: var(--red); cursor: pointer; font-size: 16px; padding: 2px 6px; }
+.ov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200;
+  align-items: flex-end; justify-content: center; }
+.ov.on { display: flex; }
+.modal { background: var(--s1); border-radius: 20px 20px 0 0; padding: 24px 20px 36px;
+  width: 100%; max-width: 540px; max-height: 85vh; overflow-y: auto; }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 18px; }
+label { font-size: 12px; color: var(--muted); font-weight: 600; display: block; margin-bottom: 5px; }
+input, select { width: 100%; background: var(--s2); border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; color: var(--text); margin-bottom: 12px; }
+.fr { display: flex; gap: 10px; }
+.fr > div { flex: 1; }
+.item-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--s3); }
+.item-row:last-child { border-bottom: none; }
+.item-icon { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+.item-info { flex: 1; min-width: 0; }
+.item-name { font-size: 14px; font-weight: 600; }
+.item-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.item-qty { font-size: 13px; font-family: var(--mono); font-weight: 600; flex-shrink: 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-red { background: var(--red-light); color: var(--red); }
+.badge-gold { background: var(--gold-light); color: var(--gold); }
+.badge-green { background: var(--green-light); color: var(--green); }
+.empty { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
+.shop-list-item { display: flex; align-items: center; gap:12px; padding: 10px 0; border-bottom: 1px solid var(--s3); }
+.shop-list-item:last-child { border-bottom: none; }
+.shop-check { width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/index.html" class="nav-home">🏡</a>
+  <button class="tab on" onclick="goTab('fridge',this)">🧊 냉장고</button>
+  <button class="tab" onclick="goTab('supplies',this)">🧴 생필품</button>
+  <button class="tab" onclick="goTab('shopping',this)">🛒 장보기</button>
+</nav>
+
+<!-- 냉장고 탭 -->
+<div class="page on" id="tab-fridge">
+  <div class="ph">
+    <div class="ph-title">🧊 냉장고</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sm" onclick="openAddItem('fridge')">+ 추가</button>
+    </div>
+  </div>
+
+  <!-- 유통기한 임박 -->
+  <div class="card" id="expiry-card" style="display:none;border-color:var(--red);background:var(--red-light)">
+    <div class="card-title" style="color:var(--red)">⚠️ 유통기한 임박</div>
+    <div id="expiry-list"></div>
+  </div>
+
+  <!-- 카테고리별 -->
+  <div id="fridge-content"></div>
+</div>
+
+<!-- 생필품 탭 -->
+<div class="page" id="tab-supplies">
+  <div class="ph">
+    <div class="ph-title">🧴 생필품</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sm" onclick="openAddItem('supplies')">+ 추가</button>
+    </div>
+  </div>
+  <div id="supplies-content"></div>
+</div>
+
+<!-- 장보기 탭 -->
+<div class="page" id="tab-shopping">
+  <div class="ph">
+    <div class="ph-title">🛒 장보기 목록</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sm" onclick="clearChecked()">완료 삭제</button>
+      <button class="btn-sm" onclick="openAddItem('shopping')">+ 직접 추가</button>
+    </div>
+  </div>
+  <div class="card">
+    <div id="shopping-list"></div>
+  </div>
+</div>
+
+<!-- 항목 추가/편집 모달 -->
+<div class="ov" id="ov-item" onclick="oclose('ov-item',event)">
+  <div class="modal">
+    <div class="modal-title" id="item-modal-title">항목 추가</div>
+    <input type="hidden" id="item-mode">
+    <input type="hidden" id="item-edit-id">
+
+    <div class="fr">
+      <div>
+        <label>이름</label>
+        <input type="text" id="item-name" placeholder="예: 우유, 샴푸">
+      </div>
+      <div>
+        <label>카테고리</label>
+        <select id="item-cat"></select>
+      </div>
+    </div>
+    <div class="fr">
+      <div>
+        <label>수량</label>
+        <input type="number" id="item-qty" placeholder="0" min="0">
+      </div>
+      <div>
+        <label>단위</label>
+        <input type="text" id="item-unit" placeholder="개, 봉, L, kg">
+      </div>
+    </div>
+    <div id="expiry-wrap">
+      <label>유통기한</label>
+      <input type="date" id="item-expiry">
+    </div>
+    <div id="min-wrap">
+      <label>최소 재고 (이하면 장보기 자동 추가)</label>
+      <input type="number" id="item-min" placeholder="0" min="0">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="cm('ov-item')">취소</button>
+      <button class="btn" onclick="saveItem()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 데이터 구조
+const DEF = { fridge: [], supplies: [], shopping: [] };
+
+const FRIDGE_CATS  = ['🥩 육류/해산물','🥬 채소','🍎 과일','🥛 유제품','🍳 반찬/조리식품','🧃 음료','🍞 빵/간식','기타'];
+const SUPPLY_CATS  = ['🧻 화장지/위생','🧴 욕실용품','🧹 청소용품','🍳 주방용품','👶 육아용품','기타'];
+
+function loadLS(key, fallback) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
+}
+function save() {
+  localStorage.setItem('stk_fridge',   JSON.stringify(data.fridge));
+  localStorage.setItem('stk_supplies', JSON.stringify(data.supplies));
+  localStorage.setItem('stk_shopping', JSON.stringify(data.shopping));
+}
+
+let data = {
+  fridge:   loadLS('stk_fridge',   []),
+  supplies: loadLS('stk_supplies', []),
+  shopping: loadLS('stk_shopping', []),
+};
+
+let curMode = 'fridge';
+
+// ── 탭 전환
+function goTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('tab-' + name).classList.add('on');
+  if (name === 'fridge')   renderFridge();
+  if (name === 'supplies') renderSupplies();
+  if (name === 'shopping') renderShopping();
+}
+
+// ── 모달 유틸
+function cm(id) { document.getElementById(id).classList.remove('on'); }
+function oclose(id, e) { if (e.target === document.getElementById(id)) cm(id); }
+
+// ── 유통기한 상태
+function expiryStatus(dateStr) {
+  if (!dateStr) return null;
+  const diff = Math.ceil((new Date(dateStr) - new Date()) / 86400000);
+  if (diff < 0)  return { label: '유통기한 초과', cls: 'badge-red', diff };
+  if (diff <= 3) return { label: `D-${diff}`, cls: 'badge-red', diff };
+  if (diff <= 7) return { label: `D-${diff}`, cls: 'badge-gold', diff };
+  return { label: `D-${diff}`, cls: 'badge-green', diff };
+}
+
+// ── 냉장고 렌더
+function renderFridge() {
+  const items = data.fridge;
+  // 유통기한 임박
+  const urgent = items.filter(i => {
+    const s = expiryStatus(i.expiry);
+    return s && s.diff <= 3;
+  });
+  const ec = document.getElementById('expiry-card');
+  if (urgent.length > 0) {
+    ec.style.display = 'block';
+    document.getElementById('expiry-list').innerHTML = urgent.map(i => {
+      const s = expiryStatus(i.expiry);
+      return `<div class="item-row">
+        <span class="item-icon">${getCatIcon(i.cat)}</span>
+        <div class="item-info"><div class="item-name">${i.name}</div><div class="item-sub">${i.cat}</div></div>
+        <span class="badge badge-red">${s.label}</span>
+      </div>`;
+    }).join('');
+  } else { ec.style.display = 'none'; }
+
+  // 카테고리 그룹
+  const groups = {};
+  items.forEach(i => { if (!groups[i.cat]) groups[i.cat] = []; groups[i.cat].push(i); });
+
+  document.getElementById('fridge-content').innerHTML = Object.keys(groups).length === 0
+    ? `<div class="empty">냉장고가 비어있어요<br>+ 추가 버튼으로 재료를 등록하세요</div>`
+    : Object.entries(groups).map(([cat, its]) => `
+      <div class="card">
+        <div class="card-title">${cat} <span style="font-size:12px;color:var(--muted);font-weight:400">${its.length}개</span></div>
+        ${its.map(i => itemRow(i, 'fridge')).join('')}
+      </div>`).join('');
+}
+
+// ── 생필품 렌더
+function renderSupplies() {
+  const items = data.supplies;
+  const groups = {};
+  items.forEach(i => { if (!groups[i.cat]) groups[i.cat] = []; groups[i.cat].push(i); });
+
+  document.getElementById('supplies-content').innerHTML = Object.keys(groups).length === 0
+    ? `<div class="empty">생필품이 없어요<br>+ 추가 버튼으로 등록하세요</div>`
+    : Object.entries(groups).map(([cat, its]) => `
+      <div class="card">
+        <div class="card-title">${cat} <span style="font-size:12px;color:var(--muted);font-weight:400">${its.length}개</span></div>
+        ${its.map(i => itemRow(i, 'supplies')).join('')}
+      </div>`).join('');
+}
+
+function itemRow(i, mode) {
+  const s = expiryStatus(i.expiry);
+  const isLow = i.min > 0 && i.qty <= i.min;
+  return `<div class="item-row" onclick="openEditItem('${mode}','${i.id}')">
+    <span class="item-icon">${getCatIcon(i.cat)}</span>
+    <div class="item-info">
+      <div class="item-name">${i.name}</div>
+      <div class="item-sub">${i.cat}${i.expiry ? ' · ' + i.expiry : ''}</div>
+    </div>
+    ${isLow ? '<span class="badge badge-red">부족</span>' : ''}
+    ${s && !isLow ? `<span class="badge ${s.cls}">${s.label}</span>` : ''}
+    <div class="item-qty">${i.qty}${i.unit||''}</div>
+    <button class="btn-danger" onclick="event.stopPropagation();deleteItem('${mode}','${i.id}')">✕</button>
+  </div>`;
+}
+
+// ── 장보기 렌더
+function renderShopping() {
+  // 재고 부족 자동 추가
+  autoAddToShopping();
+  const items = data.shopping;
+  document.getElementById('shopping-list').innerHTML = items.length === 0
+    ? `<div class="empty">장보기 목록이 비어있어요</div>`
+    : items.map(i => `
+      <div class="shop-list-item">
+        <input type="checkbox" class="shop-check" ${i.done?'checked':''} onchange="toggleShop('${i.id}',this.checked)">
+        <div style="flex:1;${i.done?'text-decoration:line-through;color:var(--muted)':''}">
+          <div style="font-size:14px;font-weight:${i.done?'400':'600'}">${i.name}</div>
+          ${i.note ? `<div style="font-size:12px;color:var(--muted)">${i.note}</div>` : ''}
+        </div>
+        <button class="btn-danger" onclick="deleteItem('shopping','${i.id}')">✕</button>
+      </div>`).join('');
+}
+
+function autoAddToShopping() {
+  const allItems = [...data.fridge, ...data.supplies];
+  allItems.forEach(i => {
+    if (i.min > 0 && i.qty <= i.min) {
+      const exists = data.shopping.some(s => s.name === i.name && !s.done);
+      if (!exists) {
+        data.shopping.push({ id: Date.now() + Math.random(), name: i.name, note: '재고 부족', done: false });
+      }
+    }
+  });
+  save();
+}
+
+function toggleShop(id, done) {
+  const item = data.shopping.find(i => i.id == id);
+  if (item) { item.done = done; save(); }
+}
+
+function clearChecked() {
+  data.shopping = data.shopping.filter(i => !i.done);
+  save(); renderShopping();
+}
+
+// ── 항목 추가/편집
+function openAddItem(mode) {
+  curMode = mode;
+  document.getElementById('item-modal-title').textContent =
+    mode === 'fridge' ? '🧊 냉장고 재료 추가' :
+    mode === 'supplies' ? '🧴 생필품 추가' : '🛒 장보기 항목 추가';
+  document.getElementById('item-edit-id').value = '';
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-qty').value = '';
+  document.getElementById('item-unit').value = mode === 'fridge' ? '개' : '개';
+  document.getElementById('item-expiry').value = '';
+  document.getElementById('item-min').value = '';
+
+  // 카테고리 옵션
+  const cats = mode === 'fridge' ? FRIDGE_CATS : mode === 'supplies' ? SUPPLY_CATS : ['기타'];
+  document.getElementById('item-cat').innerHTML = cats.map(c => `<option>${c}</option>`).join('');
+
+  // 유통기한 필드 표시 여부
+  document.getElementById('expiry-wrap').style.display = mode === 'fridge' ? 'block' : 'none';
+  document.getElementById('min-wrap').style.display = mode !== 'shopping' ? 'block' : 'none';
+
+  document.getElementById('ov-item').classList.add('on');
+}
+
+function openEditItem(mode, id) {
+  const item = data[mode].find(i => i.id == id);
+  if (!item) return;
+  curMode = mode;
+  document.getElementById('item-modal-title').textContent = '항목 수정';
+  document.getElementById('item-edit-id').value = id;
+  document.getElementById('item-name').value = item.name;
+  document.getElementById('item-qty').value = item.qty;
+  document.getElementById('item-unit').value = item.unit || '';
+  document.getElementById('item-expiry').value = item.expiry || '';
+  document.getElementById('item-min').value = item.min || '';
+
+  const cats = mode === 'fridge' ? FRIDGE_CATS : SUPPLY_CATS;
+  document.getElementById('item-cat').innerHTML = cats.map(c => `<option ${c===item.cat?'selected':''}>${c}</option>`).join('');
+  document.getElementById('expiry-wrap').style.display = mode === 'fridge' ? 'block' : 'none';
+  document.getElementById('min-wrap').style.display = mode !== 'shopping' ? 'block' : 'none';
+
+  document.getElementById('ov-item').classList.add('on');
+}
+
+function saveItem() {
+  const name = document.getElementById('item-name').value.trim();
+  if (!name) return alert('이름을 입력하세요');
+
+  const editId = document.getElementById('item-edit-id').value;
+  const obj = {
+    id: editId || Date.now(),
+    name,
+    cat: document.getElementById('item-cat').value,
+    qty: parseFloat(document.getElementById('item-qty').value) || 0,
+    unit: document.getElementById('item-unit').value.trim(),
+    expiry: document.getElementById('item-expiry').value || null,
+    min: parseFloat(document.getElementById('item-min').value) || 0,
+  };
+
+  if (curMode === 'shopping') {
+    obj.note = '';
+    obj.done = false;
+    if (editId) {
+      const idx = data.shopping.findIndex(i => i.id == editId);
+      if (idx > -1) data.shopping[idx] = obj;
+    } else {
+      data.shopping.push(obj);
+    }
+  } else {
+    if (editId) {
+      const idx = data[curMode].findIndex(i => i.id == editId);
+      if (idx > -1) data[curMode][idx] = obj;
+    } else {
+      data[curMode].push(obj);
+    }
+  }
+
+  save(); cm('ov-item');
+  if (curMode === 'fridge')   renderFridge();
+  if (curMode === 'supplies') renderSupplies();
+  if (curMode === 'shopping') renderShopping();
+}
+
+function deleteItem(mode, id) {
+  if (!confirm('삭제할까요?')) return;
+  data[mode] = data[mode].filter(i => i.id != id);
+  save();
+  if (mode === 'fridge')   renderFridge();
+  if (mode === 'supplies') renderSupplies();
+  if (mode === 'shopping') renderShopping();
+}
+
+function getCatIcon(cat) {
+  const map = {
+    '🥩 육류/해산물':'🥩','🥬 채소':'🥬','🍎 과일':'🍎','🥛 유제품':'🥛',
+    '🍳 반찬/조리식품':'🍳','🧃 음료':'🧃','🍞 빵/간식':'🍞',
+    '🧻 화장지/위생':'🧻','🧴 욕실용품':'🧴','🧹 청소용품':'🧹',
+    '🍳 주방용품':'🍳','👶 육아용품':'👶',
+  };
+  return map[cat] || '📦';
+}
+
+// 초기 렌더
+renderFridge();
+</script>
+</body>
+</html>

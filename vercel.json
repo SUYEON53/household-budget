@@ -1,11 +1,15 @@
 {
+  "rewrites": [
+    { "source": "/budget", "destination": "/budget.html" },
+    { "source": "/stock",  "destination": "/stock.html"  }
+  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://api.anthropic.com https://cdn.sheetjs.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.sheetjs.com; connect-src 'self' https://api.anthropic.com https://openrouter.ai https://fonts.googleapis.com https://fonts.gstatic.com;"
+          "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://api.anthropic.com https://cdn.sheetjs.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.sheetjs.com; connect-src 'self' https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com;"
         }
       ]
     }
