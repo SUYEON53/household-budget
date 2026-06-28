@@ -214,7 +214,7 @@ select option { background: #fff; }
 <nav class="nav">
   <div class="logo">📊 가계부</div>
   <button class="tab on" onclick="goTab('dash',this)">🎯 대시보드</button>
-  <button class="tab" onclick="goTab('assets',this)">🏦 자산현황</button>
+  <button class="tab" onclick="goTab('assets',this)" style="display:none">🏦 자산현황</button>
   <button class="tab" onclick="goTab('dividend',this)">💸 배당</button>
   <button class="tab" onclick="goTab('monthly',this)">📝 가계부</button>
   <button onclick="checkStorage()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0">🔍 진단</button>
@@ -337,7 +337,7 @@ select option { background: #fff; }
 </div>
 
 <!-- ════════════════════ ASSETS ════════════════════ -->
-<div id="tab-assets" class="page">
+<div id="tab-assets" class="page" style="display:none!important">
   <div class="ph">
     <div>
       <div class="ph-title">자산 현황</div>
@@ -826,6 +826,7 @@ function divByMonth() {
 
 // ── TABS ──
 function goTab(name, btn) {
+  if(name === 'assets') return; // 자산현황 숨김
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
